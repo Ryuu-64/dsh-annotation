@@ -19,7 +19,7 @@ import { JSDOM } from 'jsdom'
 const here = dirname(fileURLToPath(import.meta.url))
 const source = readFileSync(join(here, '..', 'client.js'), 'utf8')
 
-/** 造一个够插件启动的假宿主 + 真实 DOM。 */
+/** 造一个够插件启动的假宿主 + 真实 DOM。返回 fake clock 以便推进 1s 轮询。 */
 async function boot() {
   const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
     url: 'http://127.0.0.1/',
@@ -27,12 +27,38 @@ async function boot() {
   })
   const { window } = dom
 
+  // ---- 可控时钟：插件有 1s 兜底轮询（kickDecorate）与 500ms 限流，真实时钟下等待太慢 ----
+  let now = 0
+  let seq = 0
+  const timers = new Map()
+  window.setTimeout = (fn, ms) => { const id = ++seq; timers.set(id, { fn, at: now + (ms || 0) }); return id }
+  window.clearTimeout = (id) => { timers.delete(id) }
+  window.setInterval = (fn, ms) => { const id = ++seq; timers.set(id, { fn, at: now + (ms || 0), every: ms || 1 }); return id }
+  window.clearInterval = (id) => { timers.delete(id) }
+  window.performance.now = () => now
+  // 宿主的 ResizeObserver：jsdom 没有，装个空的（插件会构造它观察 composer 卡片）
+  if (window.ResizeObserver === undefined) {
+    window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
+  }
+
+  function tick(ms) {
+    now += ms
+    for (const [id, t] of [...timers]) {
+      if (t.at > now) continue
+      if (t.every === undefined) timers.delete(id)
+      else t.at = now + t.every
+      try { t.fn() } catch (err) { console.warn('[test] 定时器回调抛错：', err.message) }
+    }
+  }
+  const settle = () => new Promise((r) => queueMicrotask(r))
+
   // jsdom 不做布局：所有 rect 都是 0，pointerWithinTip 的判定会失真（面板读作
   // (0,0,0,0) 时指针只可能落在触发元素盒子里）。所以按元素类型喂几何：
   // 触发元素与面板各有真实矩形，且两者之间留出真实间隙，才能测出「跨间隙保活」。
   const RECTS = {
     row: { left: 100, right: 400, top: 300, bottom: 320, width: 300, height: 20, x: 100, y: 300 },
     tag: { left: 100, right: 200, top: 322, bottom: 340, width: 100, height: 18, x: 100, y: 322 },
+    chip: { left: 120, right: 240, top: 322, bottom: 340, width: 120, height: 18, x: 120, y: 322 },
   }
   const zero = { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }
   window.Element.prototype.getBoundingClientRect = function () {
@@ -83,15 +109,15 @@ async function boot() {
   assert.deepEqual([...mod.inject], ['sessions', 'conversation', 'locale'])
 
   const dispose = mod.apply(ctx)
-  await new Promise((r) => window.setTimeout(r, 0))
+  await settle()
 
   const tipLayer = window.document.querySelector('[data-annotation-tip-layer]')
   const chipLayer = window.document.querySelector('[data-annotation-chip]')
-  return { window, dom, tipLayer, chipLayer, dispose, inputState, subscribers }
+  return { window, dom, tipLayer, chipLayer, dispose, inputState, subscribers, tick, settle }
 }
 
 /** 造一条「已发送且带批注」的用户消息行，然后让装饰轮询给它贴标签。 */
-async function seedAnnotatedUserRow(window) {
+async function seedAnnotatedUserRow(window, settle) {
   const flow = window.document.createElement('div')
   flow.setAttribute('data-chat-flow-kind', 'user-step')
   const row = window.document.createElement('div')
@@ -106,12 +132,31 @@ async function seedAnnotatedUserRow(window) {
   flow.appendChild(row)
   window.document.body.appendChild(flow)
 
-  // 装饰走 MutationObserver（微任务阶段）+ 1s 兜底轮询，这里等两拍
-  await new Promise((r) => window.setTimeout(r, 30))
+  // 装饰走 MutationObserver（微任务阶段）+ 1s 兜底轮询
+  await settle()
   // 给贴出来的标签喂真实几何，供 pointerWithinTip 判定
   const tag = bubble.querySelector('[data-annotation-bubble-tag]')
   if (tag !== null) tag.setAttribute('data-testrect', 'tag')
   return { flow, row, bubble, tag }
+}
+
+/**
+ * 造一条助手回复行，内含「Annotation 1：」→ 装饰后应变成可悬浮芯片。
+ * 芯片内容取自最近一条带批注标签的用户消息（findPrevAnnotationItems）。
+ */
+async function seedAssistantChipRow(window, settle) {
+  const flow = window.document.createElement('div')
+  flow.setAttribute('data-chat-flow-kind', 'assistant-step')
+  const row = window.document.createElement('div')
+  row.className = 'somehash_assistant'
+  row.appendChild(window.document.createTextNode('Annotation 1：这里是对该批注的回应。'))
+  flow.appendChild(row)
+  window.document.body.appendChild(flow)
+
+  await settle()
+  const chip = row.querySelector('[data-annotation-reply-chip]')
+  if (chip !== null) chip.setAttribute('data-testrect', 'chip')
+  return { flow, row, chip }
 }
 
 function panelCount(tipLayer) {
@@ -129,9 +174,9 @@ test('[e2e] 真实 bundle 能装载，并挂出面板容器', async (t) => {
 })
 
 test('[e2e] 真实 hover：面板显示后，宿主 DOM 高频变化不会抹掉它', async (t) => {
-  const { window, tipLayer, dispose } = await boot()
+  const { window, tipLayer, dispose, settle } = await boot()
   t.after(() => { if (typeof dispose === 'function') dispose() })
-  const { bubble } = await seedAnnotatedUserRow(window)
+  const { bubble } = await seedAnnotatedUserRow(window, settle)
 
   const tag = bubble.querySelector('[data-annotation-bubble-tag]')
   assert.ok(tag !== null, '气泡上应贴出「批注 ×N」标签')
@@ -147,7 +192,7 @@ test('[e2e] 真实 hover：面板显示后，宿主 DOM 高频变化不会抹掉
   for (let i = 0; i < 20; i++) {
     noise.setAttribute('data-noise', String(i))
     noise.textContent = `noise ${i}`
-    await new Promise((r) => window.setTimeout(r, 0))
+    await settle()
   }
   assert.equal(panelCount(tipLayer), 1, '宿主高频变化后面板必须还在')
 
@@ -156,9 +201,9 @@ test('[e2e] 真实 hover：面板显示后，宿主 DOM 高频变化不会抹掉
 })
 
 test('[e2e] 真实 mouseleave + 指针在触发元素/间隙上：走满宽限也不关闭', async (t) => {
-  const { window, tipLayer, dispose } = await boot()
+  const { window, tipLayer, dispose, settle, tick } = await boot()
   t.after(() => { if (typeof dispose === 'function') dispose() })
-  const { tag } = await seedAnnotatedUserRow(window)
+  const { tag } = await seedAnnotatedUserRow(window, settle)
   assert.ok(tag !== null, '气泡上应贴出「批注 ×N」标签')
 
   tag.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: false }))
@@ -167,20 +212,53 @@ test('[e2e] 真实 mouseleave + 指针在触发元素/间隙上：走满宽限�
   // ① 指针停在标签矩形内（100..200 × 322..340）→ mouseleave 后不该关闭
   window.document.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, clientX: 150, clientY: 330 }))
   tag.dispatchEvent(new window.MouseEvent('mouseleave', { bubbles: false }))
-  await new Promise((r) => window.setTimeout(r, 350))   // 走满 250ms 宽限
+  tick(350)   // 走满 250ms 宽限
   assert.equal(panelCount(tipLayer), 1, '指针还在标签上，面板不该消失')
 
   // ② 指针落到标签与面板之间的间隙（y=341，容差 10 内）→ 仍不该关闭
   window.document.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, clientX: 150, clientY: 341 }))
   tag.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: false }))
   tag.dispatchEvent(new window.MouseEvent('mouseleave', { bubbles: false }))
-  await new Promise((r) => window.setTimeout(r, 350))
+  tick(350)
   assert.equal(panelCount(tipLayer), 1, '指针还在间隙容差内，面板不该消失')
 
   // ③ 指针真正远离 → 应正常关闭（不能修成永不关闭）
   window.document.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, clientX: 2000, clientY: 2000 }))
   tag.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: false }))
   tag.dispatchEvent(new window.MouseEvent('mouseleave', { bubbles: false }))
-  await new Promise((r) => window.setTimeout(r, 350))
+  tick(350)
   assert.equal(panelCount(tipLayer), 0, '指针远离后应正常关闭（不能修成永不关闭）')
+})
+
+test('[e2e] 回复里的 Annotation 芯片：hover 显示内容，宿主变化不抹掉', async (t) => {
+  const { window, tipLayer, dispose, settle, tick } = await boot()
+  t.after(() => { if (typeof dispose === 'function') dispose() })
+
+  // 芯片内容取自「最近一条带批注标签的用户消息」，所以先造那条用户消息
+  const { tag } = await seedAnnotatedUserRow(window, settle)
+  assert.ok(tag !== null, '前置条件：用户气泡上应有批注标签')
+
+  // 再造助手回复行；「Annotation 1：」应在装饰后变成芯片
+  const { chip } = await seedAssistantChipRow(window, settle)
+  assert.ok(chip !== null, '回复里的「Annotation 1：」应被替换成可悬浮芯片')
+
+  // —— 真实悬停（这正是截图上那条路径）——
+  chip.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: false }))
+  assert.equal(panelCount(tipLayer), 1, 'chip hover 后应显示面板')
+  assert.match(tipLayer.textContent, /原文片段|批注内容/, 'chip 面板应带出被批注的原文/批注')
+
+  // 宿主高频变化 + 走满宽限（指针停在 chip 矩形内 120..240 × 322..340）
+  window.document.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, clientX: 180, clientY: 330 }))
+  chip.dispatchEvent(new window.MouseEvent('mouseleave', { bubbles: false }))
+  tick(350)
+  assert.equal(panelCount(tipLayer), 1, 'chip 面板不该被宿主变化或宽限抹掉')
+
+  const noise = window.document.createElement('div')
+  window.document.body.appendChild(noise)
+  for (let i = 0; i < 10; i++) {
+    noise.setAttribute('data-noise', String(i))
+    noise.textContent = `noise ${i}`
+    await settle()
+  }
+  assert.equal(panelCount(tipLayer), 1, '宿主高频变化后 chip 面板必须还在')
 })
