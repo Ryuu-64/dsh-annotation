@@ -27,14 +27,21 @@ async function boot() {
   })
   const { window } = dom
 
-  // ---- 可控时钟：插件有 1s 兜底轮询（kickDecorate）与 500ms 限流，真实时钟下等待太慢 ----
+  // ---- 可控时钟 ----
+  // 插件有 1s 兜底轮询（kickDecorate）、500ms 限流，以及最关键的 onLayoutChange：
+  // 它把 updateChip() 放进 requestAnimationFrame 里。三者都必须并入同一个假时钟，
+  // 否则「宿主变化 → updateChip → 面板被清」这条链路永远不会执行，用例会假绿
+  // （踩过：只接管 setTimeout/setInterval 时，上游代码也能"通过"这条复现用例）。
   let now = 0
   let seq = 0
   const timers = new Map()
+  const rafs = new Map()
   window.setTimeout = (fn, ms) => { const id = ++seq; timers.set(id, { fn, at: now + (ms || 0) }); return id }
   window.clearTimeout = (id) => { timers.delete(id) }
   window.setInterval = (fn, ms) => { const id = ++seq; timers.set(id, { fn, at: now + (ms || 0), every: ms || 1 }); return id }
   window.clearInterval = (id) => { timers.delete(id) }
+  window.requestAnimationFrame = (fn) => { const id = ++seq; rafs.set(id, { fn, at: now + 16 }); return id }
+  window.cancelAnimationFrame = (id) => { rafs.delete(id) }
   window.performance.now = () => now
   // 宿主的 ResizeObserver：jsdom 没有，装个空的（插件会构造它观察 composer 卡片）
   if (window.ResizeObserver === undefined) {
@@ -43,6 +50,11 @@ async function boot() {
 
   function tick(ms) {
     now += ms
+    for (const [id, t] of [...rafs]) {
+      if (t.at > now) continue
+      rafs.delete(id)
+      try { t.fn(now) } catch (err) { console.warn('[test] rAF 回调抛错：', err.message) }
+    }
     for (const [id, t] of [...timers]) {
       if (t.at > now) continue
       if (t.every === undefined) timers.delete(id)
@@ -111,9 +123,17 @@ async function boot() {
   const dispose = mod.apply(ctx)
   await settle()
 
+  // 把指针放到标签矩形中心（150, 331）：后续断言若被 250ms 宽限关掉面板，
+  // 就分不清「宿主清掉的」还是「宽限关掉的」——所以悬停期间必须让指针留在触发元素上。
+  const pointerAtTag = () => {
+    window.document.dispatchEvent(new window.MouseEvent('pointermove', {
+      bubbles: true, clientX: (RECTS.tag.left + RECTS.tag.right) / 2, clientY: (RECTS.tag.top + RECTS.tag.bottom) / 2,
+    }))
+  }
+
   const tipLayer = window.document.querySelector('[data-annotation-tip-layer]')
   const chipLayer = window.document.querySelector('[data-annotation-chip]')
-  return { window, dom, tipLayer, chipLayer, dispose, inputState, subscribers, tick, settle }
+  return { window, dom, tipLayer, chipLayer, dispose, inputState, subscribers, tick, settle, pointerAtTag }
 }
 
 /** 造一条「已发送且带批注」的用户消息行，然后让装饰轮询给它贴标签。 */
@@ -174,24 +194,31 @@ test('[e2e] 真实 bundle 能装载，并挂出面板容器', async (t) => {
 })
 
 test('[e2e] 真实 hover：面板显示后，宿主 DOM 高频变化不会抹掉它', async (t) => {
-  const { window, tipLayer, dispose, settle } = await boot()
+  const { window, tipLayer, dispose, settle, tick, pointerAtTag } = await boot()
   t.after(() => { if (typeof dispose === 'function') dispose() })
   const { bubble } = await seedAnnotatedUserRow(window, settle)
 
   const tag = bubble.querySelector('[data-annotation-bubble-tag]')
   assert.ok(tag !== null, '气泡上应贴出「批注 ×N」标签')
 
-  // —— 真实悬停 ——
+  // —— 真实悬停（指针停在标签上，避免 250ms 宽限把它关掉而掩盖结论）——
+  pointerAtTag()
   tag.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: false }))
   assert.equal(panelCount(tipLayer), 1, 'hover 后应显示 1 个面板')
 
-  // 宿主侧高频 DOM 变化（线上就是它把面板清掉的）：
-  // 每次都改一个与插件无关的节点的属性/文本 → 触发 body 级 MutationObserver
+  // 宿主侧高频 DOM 变化（线上就是它把面板清掉的）：改一个与插件无关的节点的
+  // 属性/文本 → 经 body 级 MutationObserver → onLayoutChange → updateChip。
+  //
+  // 注意：每轮都要真实推进时钟并让出微任务。若像早期版本那样只 await 微任务、
+  // 完全不推进时钟，插件的 1s 轮询永不执行，上游代码也会「通过」这条用例 ——
+  // 那是假绿，会让整条证据链失效（这个坑真踩过）。
   const noise = window.document.createElement('div')
   window.document.body.appendChild(noise)
   for (let i = 0; i < 20; i++) {
     noise.setAttribute('data-noise', String(i))
     noise.textContent = `noise ${i}`
+    await settle()
+    tick(40)              // 累计 800ms，跨过插件的多轮内部节流/轮询
     await settle()
   }
   assert.equal(panelCount(tipLayer), 1, '宿主高频变化后面板必须还在')

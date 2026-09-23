@@ -46,6 +46,7 @@
     "verify:deployment": "node scripts/verify-deployment.mjs",
     "check:upstream": "node scripts/check-against-upstream.mjs",
     "audit:drift": "node scripts/audit-drift.mjs",
+    "verify": "node scripts/verify.mjs",
     "install:local": "node scripts/install-local.mjs",
     "deploy:profile": "node scripts/deploy-profile.mjs",
     "file:issues": "node scripts/file-issues.mjs"
