@@ -39,7 +39,9 @@
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib', { recursive: true, force: true })\" && tsc -p tsconfig.json",
-    "test": "node --test \"test/**/*.test.mjs\"",
+    "test": "node --test test/hover-tip.test.mjs",
+    "test:dom": "node --test test/hover-tip.dom.test.mjs",
+    "test:all": "node --test test/hover-tip.test.mjs test/hover-tip.dom.test.mjs",
     "check": "node --check lib/index.js && node --check client.js && npm test",
     "verify:deployment": "node scripts/verify-deployment.mjs",
     "check:upstream": "node scripts/check-against-upstream.mjs",
@@ -55,6 +57,7 @@
     "cordis": "^4.0.0-rc.7 || ^4.0.1"
   },
   "devDependencies": {
+    "jsdom": "^29.1.1",
     "typescript": "^5.9.0"
   },
   "dsh": {
