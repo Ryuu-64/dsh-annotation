@@ -32,6 +32,7 @@ function argOf(flag, fallback) {
 const profileName = argOf('--profile', 'desktop')
 const remove = process.argv.includes('--remove')
 const noInstall = process.argv.includes('--no-install')
+const dryRun = process.argv.includes('--dry-run')
 
 const dshHome = process.env.DSH_HOME ?? join(process.env.USERPROFILE ?? process.env.HOME ?? '', '.dsh')
 const profileDir = join(dshHome, 'profiles', profileName)
@@ -75,6 +76,11 @@ if (remove) {
 
 if (JSON.stringify(manifest) === before) {
   console.log('[deploy-profile] 清单已是目标状态，无需改动。')
+} else if (dryRun) {
+  console.log('[deploy-profile] --dry-run：清单需要改动，但不写入。将改为：')
+  console.log(JSON.stringify({ dependencies: manifest.dependencies, bundles: manifest.dsh.profile.bundles }, null, 2))
+  console.log('[deploy-profile] 去掉 --dry-run 即真正写入。')
+  process.exit(0)
 } else {
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
   console.log(`[deploy-profile] 已更新 ${manifestPath}`)
