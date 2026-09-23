@@ -1,0 +1,15 @@
+# @ryuu-64/dsh-annotation bundle patch（上游 @changfenhuang/dsh-annotation 的 fork）
+#
+# 本地开发走 profile 的 link: 依赖（见 desktop profile 的 package.json）：
+#
+#   "dependencies": { "@ryuu-64/dsh-annotation": "link:F:/Workspace/DshWorkspace/dsh-annotation" }
+#   "dsh.profile.bundles": [ ..., "@ryuu-64/dsh-annotation" ]
+#
+# 也可用官方 CLI 从 tarball 安装：
+#
+#   dsh plugin --profile desktop add ryuu-64-dsh-annotation-1.4.10.tgz
+#
+# Node half 是空实现，全部功能在 client.js（浏览器 bundle）。
+- insert:
+    - id: dsh-annotation
+      name: '@ryuu-64/dsh-annotation'
