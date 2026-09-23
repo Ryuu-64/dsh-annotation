@@ -59,7 +59,7 @@ npm run verify       # 语法 + 行为 + 反向验证 + 漂移审计 + 部署接
 | 命令 | 作用 |
 | --- | --- |
 | `npm test` | 单测：把 `clearTip`/`scheduleHide`/`pointerWithinTip` 等真实函数抽到 Node vm 沙箱里按行为跑 |
-| `npm run test:dom` | e2e：在 jsdom 里经 `ModuleLoader.load → factory → apply(ctx)` **装载真实 bundle**，用真实 DOM 事件与 `MutationObserver` 驱动 |
+| `npm run test:dom` | e2e：在 jsdom 里经 `ModuleLoader.load → factory → apply(ctx)` **装载真实 bundle**，用真实 DOM 事件与 `MutationObserver` 驱动；三类面板各一条（气泡标签 / 回复芯片 / 输入框胶囊） |
 | `npm run check:upstream` | 把同一套用例指向上游 1.4.10 跑一遍，确认测试**确实能抓到**这个 bug（否则只是自我安慰） |
 | `npm run audit:drift` | 审计与上游 1.4.10 的每一处差异是否都能归因到预期修复 |
 | `npm run verify:deployment` | 核对 profile 接线：依赖指向、bundles 名单、软链、包名与 ModuleLoader id 一致等 |
@@ -68,8 +68,8 @@ npm run verify       # 语法 + 行为 + 反向验证 + 漂移审计 + 部署接
 
 | | 单测 | e2e | 合计 |
 | --- | --- | --- | --- |
-| **本 fork** | 15/15 | 4/4 | **19/19** |
-| **上游 1.4.10** | 2/15 | 0/4 | **2/19** |
+| **本 fork** | 15/15 | 5/5 | **20/20** |
+| **上游 1.4.10** | 1/15 | 0/5 | **1/20** |
 
 上游失败中最关键的一条正是本 fork 修的现象：
 

@@ -20,12 +20,20 @@ const here = dirname(fileURLToPath(import.meta.url))
 const source = readFileSync(join(here, '..', 'client.js'), 'utf8')
 
 /** 造一个够插件启动的假宿主 + 真实 DOM。返回 fake clock 以便推进 1s 轮询。 */
-async function boot() {
+async function boot(opts = {}) {
   const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
     url: 'http://127.0.0.1/',
     pretendToBeVisual: true,   // 提供 requestAnimationFrame
   })
   const { window } = dom
+
+  // 预置「待发送批注」：插件启动时从 localStorage 恢复，胶囊才会渲染出来。
+  // key 规则见 client.js 的 pendingStorageKey()：前缀 + encodeURIComponent(sessionId)。
+  if (opts.pendingQuotes !== undefined) {
+    window.localStorage.setItem(
+      `dsh.annotation.pending.v1.${encodeURIComponent('session-a')}`,
+      JSON.stringify(opts.pendingQuotes))
+  }
 
   // ---- 可控时钟 ----
   // 插件有 1s 兜底轮询（kickDecorate）、500ms 限流，以及最关键的 onLayoutChange：
@@ -71,6 +79,10 @@ async function boot() {
     row: { left: 100, right: 400, top: 300, bottom: 320, width: 300, height: 20, x: 100, y: 300 },
     tag: { left: 100, right: 200, top: 322, bottom: 340, width: 100, height: 18, x: 100, y: 322 },
     chip: { left: 120, right: 240, top: 322, bottom: 340, width: 120, height: 18, x: 120, y: 322 },
+    // 输入框旁那颗「N 条批注」胶囊（由 updateChip 按 ui.quotes 渲染并定位到 composer 卡片上方）
+    composerChip: { left: 300, right: 380, top: 600, bottom: 622, width: 80, height: 22, x: 300, y: 600 },
+    // composer 卡片：updateChip 的可见性判据依赖它的 rect（宽高为 0 或移出视口就隐藏胶囊）
+    composerCard: { left: 200, right: 700, top: 640, bottom: 720, width: 500, height: 80, x: 200, y: 640 },
   }
   const zero = { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }
   window.Element.prototype.getBoundingClientRect = function () {
@@ -257,8 +269,7 @@ test('[e2e] 真实 mouseleave + 指针在触发元素/间隙上：走满宽限�
   assert.equal(panelCount(tipLayer), 0, '指针远离后应正常关闭（不能修成永不关闭）')
 })
 
-test('[e2e] 回复里的 Annotation 芯片：hover 显示内容，宿主变化不抹掉', async (t) => {
-  const { window, tipLayer, dispose, settle, tick } = await boot()
+test('[e2e] 回复里的 Annotation 芯片：hover 显示内容，宿主变化不抹掉', async (t) => {  const { window, tipLayer, dispose, settle, tick } = await boot()
   t.after(() => { if (typeof dispose === 'function') dispose() })
 
   // 芯片内容取自「最近一条带批注标签的用户消息」，所以先造那条用户消息
@@ -288,4 +299,52 @@ test('[e2e] 回复里的 Annotation 芯片：hover 显示内容，宿主变化�
     await settle()
   }
   assert.equal(panelCount(tipLayer), 1, '宿主高频变化后 chip 面板必须还在')
+})
+
+test('[e2e] 输入框旁胶囊面板：hover 显示全部条目，宿主变化不抹掉', async (t) => {
+  // 这是第三类面板，走的是 updateChip()/showChipTip()，与前两类不是同一段代码。
+  // 它的数据源是「待发送批注」（localStorage 恢复），所以启动前先预置。
+  const { window, tipLayer, dispose, settle, tick } = await boot({
+    pendingQuotes: [
+      { id: 'q1', text: '待发送原文一', note: '待发送批注一' },
+      { id: 'q2', text: '待发送原文二', note: '待发送批注二' },
+    ],
+  })
+  t.after(() => { if (typeof dispose === 'function') dispose() })
+
+  // 插件的胶囊定位依赖 [data-composer-card]；插上并让 updateChip 跑一轮
+  const card = window.document.createElement('div')
+  card.setAttribute('data-composer-card', '')
+  card.setAttribute('data-testrect', 'composerCard')
+  window.document.body.appendChild(card)
+  tick(1200)
+  await settle()
+
+  const chip = window.document.querySelector('[data-annotation-chip]')
+  assert.ok(chip !== null, '应渲染出输入框旁的批注胶囊')
+  assert.notEqual(chip.style.display, 'none', '有 2 条待发送批注时胶囊应可见')
+  chip.setAttribute('data-testrect', 'composerChip')
+
+  chip.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: false }))
+  assert.equal(panelCount(tipLayer), 1, '胶囊 hover 后应显示面板')
+  assert.match(tipLayer.textContent, /待发送原文一/, '面板应列出第 1 条原文')
+  assert.match(tipLayer.textContent, /待发送原文二/, '面板应列出第 2 条原文')
+
+  // 指针停在胶囊矩形内（300..380 × 600..622）→ 走满宽限也不该关闭
+  window.document.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, clientX: 340, clientY: 610 }))
+  chip.dispatchEvent(new window.MouseEvent('mouseleave', { bubbles: false }))
+  tick(350)
+  assert.equal(panelCount(tipLayer), 1, '指针还在胶囊上，面板不该消失')
+
+  // 宿主高频变化：这一条正是上游「无待发送批注」分支清空共享容器会误杀的场景
+  const noise = window.document.createElement('div')
+  window.document.body.appendChild(noise)
+  for (let i = 0; i < 10; i++) {
+    noise.setAttribute('data-noise', String(i))
+    noise.textContent = `noise ${i}`
+    await settle()
+    tick(70)
+    await settle()
+  }
+  assert.equal(panelCount(tipLayer), 1, '宿主高频变化后胶囊面板必须还在')
 })
