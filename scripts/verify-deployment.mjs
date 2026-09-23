@@ -121,7 +121,11 @@ console.log('')
 if (failed === 0) {
   console.log('[verify] 部署接线全部通过。')
   console.log('[verify] 剩下只能人工确认：刷新页面后 hover 一条已有批注，面板应稳定不消失。')
-  console.log(`[verify] 页面控制台可核对登记：window.__DSH_BOOT__.entries.find(({ id }) => id === '${FORK}')`)
+  console.log('[verify] ⚠ 接线自检通过 ≠ 宿主已加载本 fork。bundle 列表只在宿主启动时解析一次，')
+  console.log('[verify]   改动依赖/bundles 名单后必须重启 DSH Desktop；只刷新页面不会让新插件上线。')
+  console.log(`[verify] 页面控制台核对登记：window.__DSH_BOOT__.entries.find(({ id }) => id === '${FORK}')`)
+  console.log('[verify]   · 返回带 url 的登记 → 宿主已加载（此后改 client.js 只需刷新页面）')
+  console.log('[verify]   · undefined → 宿主仍是旧配置，先重启 DSH Desktop')
 } else {
   console.log(`[verify] ${failed} 项未通过。运行 node scripts/deploy-profile.mjs 修复接线。`)
   process.exit(1)

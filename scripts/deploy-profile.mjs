@@ -99,5 +99,13 @@ try {
 }
 
 console.log('[deploy-profile] 完成。刷新 DSH Web 页面（或重启 DSH Desktop）后生效。')
-console.log('[deploy-profile] 自检：页面控制台执行')
-console.log(`  window.__DSH_BOOT__.entries.find(({ id }) => id === '${remove ? UPSTREAM : FORK}')`)
+console.log('')
+console.log('[deploy-profile] ⚠ 重要：bundle 列表只在宿主启动时解析一次，因此「改依赖/bundles 名单」')
+console.log('  这类改动必须重启 DSH Desktop 才生效 —— 仅仅刷新页面不会让新插件上线。')
+console.log('  自检方法（确认宿主是否已经加载本 fork）：')
+console.log('    1) 页面控制台：')
+console.log(`       window.__DSH_BOOT__.entries.find(({ id }) => id === '${remove ? UPSTREAM : FORK}')`)
+console.log('       返回带 url 的登记 = 已加载；undefined = 宿主还是旧配置，需要重启。')
+console.log('    2) 源码改动（client.js 等）不需要重启：宿主按请求组装 bundle，刷新页面即可。')
+console.log('')
+console.log('[deploy-profile] Node half 是空实现，真正的功能全在 client.js。')
