@@ -16,18 +16,35 @@
 // Content-Type 猜编码，中文正文容易在 POST 时变成 422；这里统一走 Node 的
 // fetch + UTF-8 字节，避免那条坑。
 
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const issuesDir = join(repoRoot, 'issues')
+// 台账：记录每个 .md 已建成哪个 issue，避免重复运行建出重复 issue
+const ledgerPath = join(issuesDir, '.filed.json')
 const argv = process.argv
 const dryRun = argv.includes('--dry-run')
 const forceApi = argv.includes('--api')
+const state = argv.includes('--state') ? argv[argv.indexOf('--state') + 1] : 'open'
 const repo = argv.includes('--repo') ? argv[argv.indexOf('--repo') + 1] : 'Ryuu-64/dsh-annotation'
 const tokenArg = argv.includes('--token') ? argv[argv.indexOf('--token') + 1] : undefined
+
+function readLedger() {
+  try {
+    // 去掉可能的 UTF-8 BOM：PowerShell 的 Set-Content -Encoding UTF8 会写入 BOM，
+    // 带 BOM 时 JSON.parse 抛错、台账会被静默当成空 —— 于是重复建 issue。
+    const raw = readFileSync(ledgerPath, 'utf8').replace(/^\uFEFF/, '')
+    const parsed = JSON.parse(raw)
+    return parsed !== null && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+const ledger = readLedger()
+const saveLedger = () => writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8')
 
 function hasGh() {
   try {
@@ -67,11 +84,18 @@ if (!useGh && !dryRun) {
 }
 
 let created = 0
+let skipped = 0
 for (const file of files) {
   const body = readFileSync(join(issuesDir, file), 'utf8')
   const title = /^#\s+(.+)$/m.exec(body)?.[1]?.trim()
   if (title === undefined) {
     console.error(`[file-issues] ${file} 缺少一级标题，跳过`)
+    continue
+  }
+  // 台账去重：已建过的文件不再重复提交（否则每次运行都会刷出一批重复 issue）
+  if (typeof ledger[file] === 'number' && state !== 'closed') {
+    console.log(`  · 跳过 ${file}（已在 #${ledger[file]}）`)
+    skipped++
     continue
   }
   if (dryRun) {
@@ -83,6 +107,7 @@ for (const file of files) {
       const url = execFileSync('gh', ['issue', 'create', '--repo', repo, '--title', title, '--body-file', '-'],
         { input: body, encoding: 'utf8' }).trim()
       console.log(`  ✔ ${url}`)
+      ledger[file] = Number(/#(\d+)\s*$/.exec(url)?.[1] ?? 0) || url
     } else {
       const res = await fetch(`https://api.github.com/repos/${repo}/issues`, {
         method: 'POST',
@@ -101,10 +126,12 @@ for (const file of files) {
       }
       const json = JSON.parse(text)
       console.log(`  ✔ #${json.number}  ${json.html_url}`)
+      ledger[file] = json.number
     }
     created++
+    saveLedger()
   } catch (err) {
     console.error(`  ✖ ${file} → ${err.message}`)
   }
 }
-console.log(`\n[file-issues] 完成：新建 ${created} / ${files.length}。`)
+console.log(`\n[file-issues] 完成：新建 ${created}，跳过 ${skipped}（台账 ${ledgerPath}）`)
