@@ -14,7 +14,7 @@ import { dirname, join, resolve } from 'node:path'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const upstream =
-  process.argv[2] ?? 'C:\\Users\\Ryuu\\.dsh\\profiles\\desktop\\node_modules\\@changfenhuang\\dsh-annotation\\client.js'
+  process.argv[2] ?? resolve(repoRoot, '.baseline', '1.4.10', 'package', 'client.js')
 
 let source
 try {
