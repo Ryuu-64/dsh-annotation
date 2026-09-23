@@ -5,3 +5,4 @@ node_modules/
 .upstream-staging/
 .baseline/
 .audit/
+commit-msg.tmp.txt

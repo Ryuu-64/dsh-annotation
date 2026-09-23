@@ -1,160 +1,92 @@
-# dsh-annotation
+# @ryuu-64/dsh-annotation
 
-> **This is a fork**: `@ryuu-64/dsh-annotation`, based on upstream
-> [`@changfenhuang/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation) **1.4.10** (MIT).
-> It changes only the browser-side hover-tip subsystem, fixing "the annotation tooltip
-> flashes once and disappears on hover". See [`NOTICE.md`](./NOTICE.md) and
-> [`CHANGELOG.md`](./CHANGELOG.md) for the change list.
-> **Please file issues in this repository**: https://github.com/Ryuu-64/dsh-annotation/issues
-> The upstream repository is unrelated to this fork — do not report fork changes there.
+DSH Web 选中批注插件的 **fork**，修复了「鼠标悬停到批注上只显示一下，然后马上消失」。
 
-Verified hosts: DSH 0.1.5-rc.2 and the 0.1.2-rc.1 minimum. These are core versions, not Desktop shell versions.
+基线上游：[`@changfenhuang/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation) **1.4.10**（MIT）。
+本 fork 只改浏览器端 `client.js` 的**悬浮面板（hover tip）子系统**，其余行为与上游一致，
+以便上游修复后低成本对齐。
 
-<div align="center">
+- 问题跟踪：https://github.com/Ryuu-64/dsh-annotation/issues
+- 上游仓库与本 fork 无关，**请勿向上游反馈本 fork 的改动**
+- 改动清单与上游关系：见 [`NOTICE.md`](./NOTICE.md) 与 [`CHANGELOG.md`](./CHANGELOG.md)
+- 上游原始文档：[`README.fork-upstream.md`](./README.fork-upstream.md) / [`README.fork-upstream.zh-CN.md`](./README.fork-upstream.zh-CN.md)
 
-**English** · [简体中文](./README.zh-CN.md)
+## 修了什么
 
-</div>
+三类悬浮面板（输入框旁胶囊 / 用户气泡上的「批注 ×N」标签 / 回复里的 `Annotation N` 芯片）
+共享同一个单例容器 `tipLayer`，而上游的清理逻辑没有「归属」概念，加上固定的 250ms
+宽限，导致面板刚显示就被抹掉。四个修复：
 
-<p align="center">Selection-annotation plugin for DSH Web: select text → annotate → press Enter to send it along with your message; the model replies to each annotation by number.</p>
+| 标记 | 缺陷 | 修法 |
+| --- | --- | --- |
+| **A** | `updateChip()` 在「无待发送批注」时**无条件**清空共享容器；而它由 `scroll`(capture) / `resize` / body 级 `MutationObserver` 经 `onLayoutChange`(rAF) **高频**调用 | 引入归属模型 `tipOwner` / `clearTip(owner)` / `presentTip(owner, el)`，清空必须指名归属 |
+| **B** | 面板与触发元素间有 6px 间隙，跨间隙全靠固定 250ms 赌手速 | 宽限到点复查**实时**指针位置（`pointermove` 跟踪，而非 `mouseleave` 的过期坐标），指针仍在「触发元素 + 面板 + 容差」并集内就不关闭 |
+| **C** | 每个面板各持一个 `hide` 定时器却清同一个容器，A 的定时器会误杀 B 刚显示的面板 | 共用一个计时器句柄，关闭前校验「自己仍是当前归属」 |
+| **D** | 每次渲染气泡标签/回复芯片都往同一个 `tipLayer` 追加监听器，重渲染导致无界累积 | 共享容器只保留两处固定监听器，按 `tipOwner` 分派 |
 
-<p align="center"><strong>🌐 This fork: <a href="https://github.com/Ryuu-64/dsh-annotation">github.com/Ryuu-64/dsh-annotation</a> (upstream product site: <a href="https://omdsh-dev.github.io/dsh-annotation/">omdsh-dev.github.io/dsh-annotation</a>)</strong></p>
+其中 **[A] 与上游 [PR #65](https://github.com/omdsh-dev/dsh-annotation/pull/65) 同思路**
+（该 PR 截至本 fork 建立时仍为 open / 未合并，且 `1.4.11-preview.1` 未包含）。
 
-<p align="center">
-  <img src="https://badgen.net/badge/license/MIT/blue" alt="license">
-</p>
-<img width="2940" height="1770" alt="image" src="https://github.com/user-attachments/assets/c3186efc-44d3-4e7f-9523-1902d9d037e9" />
-<img width="2940" height="1770" alt="image" src="https://github.com/user-attachments/assets/0b48ac02-4648-4b94-8d8f-344f8b7c25b4" />
-<img width="2940" height="1770" alt="image" src="https://github.com/user-attachments/assets/8b2610d0-3d00-41be-b314-bac2fe616787" />
-<img width="2940" height="1770" alt="image" src="https://github.com/user-attachments/assets/9b66deea-3786-4296-9b0d-52873a15f5e1" />
+各缺陷的完整分析（复现、根因带行号、修法、验证）见
+[issues/](./issues/) —— 它们已提交为本仓库的 #2 / #3 / #4 / #5。
 
-Select any text in an assistant reply to annotate it (the annotation body may be left empty = just mark the passage). Annotations accumulate across messages and turns. An **Annotations ×N** chip appears next to the input box — hover to view all annotations, remove them one by one. Press Enter and the annotation block goes to the model together with whatever question is in the input box. **The annotation block never shows up as text in your own message bubble** — only the question plus the chip (content visible on hover; hidden before paint, zero flicker). The model replies with `Annotation 1: …` … `Annotation N: …`, one per annotation, and every Annotation label in the reply is a hoverable chip showing the annotated passage and your note.
+## 安装（本地 link，推荐）
 
-Form: official **bundle plugin** (`dsh.bundle` + a `dsh.client` declaration in package.json, injected into the browser via client-modules; the Node half is an empty implementation). **Zero core changes** — no DSH files are touched; `cordis.patch.yml` only inserts its own id once, and the profile patch stays `[]`.
+浏览器端是手写 CJS bundle，**零构建步骤**，所以改源码即时生效：
 
-## Features
-
-| Feature | Description |
-|---|---|
-| Select-to-annotate | Select assistant text → toolbar "Annotate" → write your note (may be empty); dismiss by clicking elsewhere or pressing Esc |
-| Numbered marker + highlight | A blue numbered marker + highlight anchored to the passage, viewport-anchored with collision avoidance, never lost when scrolled out of view |
-| Cross-turn collection | Any number of annotations accumulate across messages/turns, numbered from 1 |
-| "Annotations ×N" chip | Small chip beside the input box; hover shows every annotation, deletable individually |
-| Enter sends with your message | Annotation block + the question in the input box are sent to the model together (the model receives the full content) |
-| Hidden in your bubble | The annotation block is removed from your bubble's DOM the moment you send (before the browser paints), leaving only the question + the chip (hover to view); historical messages self-heal after a refresh |
-| Numbered reply correspondence | A format instruction is injected into the message so the model replies `Annotation 1: …` … `Annotation N: …` one by one |
-| Reply annotation chips | `Annotation N:` in the reply renders as hoverable chips showing the passage + your note |
-
-## Interaction flow
-
-```
-Select assistant text ──▶ Toolbar "Annotate" ──▶ Write note / save empty ──▶ Blue numbered marker + highlight
-        ▲                                                        │
-        └────────────── any number, accumulate across turns ◀────┘
-                                │
-                                ▼
-              "Annotations ×N" chip beside the input (hover to view / delete)
-                                │
-                            Press Enter
-                                ▼
-    Model receives: annotation block (number + passage + note) + your question
-    Your bubble: question only + "Annotations ×N" chip (zero flicker)
-    Model reply: Annotation 1: … Annotation 2: … (hoverable chips)
+```powershell
+git clone https://github.com/Ryuu-64/dsh-annotation.git
+cd dsh-annotation
+node scripts/deploy-profile.mjs      # 接进 desktop profile（幂等）
+node scripts/verify-deployment.mjs   # 核对 13 项接线
 ```
 
-## Install (official bundle path · the only one)
+`deploy-profile` 做三件事：把 profile 依赖换成 `link:<本仓库>`、从
+`dsh.profile.bundles` 里用本 fork 的包名替换上游包名、跑 `pnpm install`。
 
-```sh
-# Public npm package (works without an npm account)
-dsh plugin --profile web add @changfenhuang/dsh-annotation
-# Or install directly from the public GitHub source
-dsh plugin --profile web add git+https://github.com/omdsh-dev/dsh-annotation.git
-# local path install (development / debugging)
-cd /path/to/dsh-annotation
-dsh plugin --profile web add .
-# restart the web service — see "Restarting the web service" below
+> ⚠ **改依赖 / bundles 名单必须完全重启 DSH Desktop** —— bundle 列表只在宿主启动时
+> 解析一次，只刷新页面不会让新插件上线。改 `client.js` 则只需刷新页面。
+
+退回到上游：`node scripts/deploy-profile.mjs --remove`
+
+## 验证
+
+```powershell
+npm install          # 只有 jsdom 一个 devDependency
+npm run verify       # 语法 + 行为 + 反向验证 + 漂移审计 + 部署接线
 ```
 
-To add it only as a Node dependency in an existing project:
+| 命令 | 作用 |
+| --- | --- |
+| `npm test` | 单测：把 `clearTip`/`scheduleHide`/`pointerWithinTip` 等真实函数抽到 Node vm 沙箱里按行为跑 |
+| `npm run test:dom` | e2e：在 jsdom 里经 `ModuleLoader.load → factory → apply(ctx)` **装载真实 bundle**，用真实 DOM 事件与 `MutationObserver` 驱动 |
+| `npm run check:upstream` | 把同一套用例指向上游 1.4.10 跑一遍，确认测试**确实能抓到**这个 bug（否则只是自我安慰） |
+| `npm run audit:drift` | 审计与上游 1.4.10 的每一处差异是否都能归因到预期修复 |
+| `npm run verify:deployment` | 核对 profile 接线：依赖指向、bundles 名单、软链、包名与 ModuleLoader id 一致等 |
 
-```sh
-npm install @changfenhuang/dsh-annotation
+当前结果：
+
+| | 单测 | e2e | 合计 |
+| --- | --- | --- | --- |
+| **本 fork** | 15/15 | 4/4 | **19/19** |
+| **上游 1.4.10** | 2/15 | 0/4 | **2/19** |
+
+上游失败中最关键的一条正是本 fork 修的现象：
+
+```
+✖ [e2e] 真实 hover：面板显示后，宿主 DOM 高频变化不会抹掉它
+  AssertionError: 宿主高频变化后面板必须还在
+  0 !== 1        ← 面板先显示出来（前一条断言通过），随后被宿主变化抹掉
 ```
 
-> `npm install` only adds the dependency; it does not register the plugin with DSH. Use `dsh plugin add` above when installing it into DSH.
+## 已知风险
 
-### Migrating from the old `@omdsh-dev` package name
+- **内核 0.1.6-alpha.2+ 会让「发送批注」整体静默失效**：内核移除了
+  `sessions.list.current`，本 fork（与上游 1.4.10 / 1.4.11-preview.1）有 7 处依赖它，
+  其中 `attachAndSend()` / `submitAttached()` 会**静默 return**。当前验证宿主为
+  0.1.5-rc.2，未受影响。详见 [#10](https://github.com/Ryuu-64/dsh-annotation/issues/10)。
+- 本 fork 未发布到 npm；请用 `link:` 或自建 tarball 安装。
 
-If you installed the plugin before v1.4.2, remove the old dependency before installing the renamed package:
+## 许可
 
-```sh
-dsh plugin --profile web remove @omdsh-dev/dsh-annotation
-dsh plugin --profile web add @changfenhuang/dsh-annotation
-```
-
-If `dsh web` still fails and mentions `@omdsh-dev/dsh-annotation`, remove only the stale `dsh-annotation` entry that uses that old name from `~/.dsh/profiles/web/cordis.patch.yml`. The plugin now supplies the `@changfenhuang/dsh-annotation` entry itself.
-
-| Do | Don't |
-|----|------|
-| Only `dsh plugin add` / only write `bundles` | **Never** insert the same id again in the profile/home `cordis.patch.yml` |
-
-Self-check:
-
-```sh
-dsh --profile web --dump-config | rg "id: dsh-annotation"   # must be exactly 1 line
-dsh web --no-open   # open the printed one-time token URL in a browser
-```
-
-In the browser console, `window.__DSH_BOOT__.entries.find(({ id }) => id === '@changfenhuang/dsh-annotation')` must return an entry with a `url`. dsh 0.1.2 no longer exposes the old bare per-plugin URL.
-
-## Restarting the web service
-
-Pick the command for your platform:
-
-```sh
-# macOS (launchd)
-launchctl kickstart -k "gui/$(id -u)/com.dsh.web"
-
-# WSL / Linux with systemd user services
-# The unit name may differ by install method; check with:
-#   systemctl --user list-units | rg dsh
-systemctl --user restart dsh-web
-```
-
-Environments without a service manager (e.g. some containers) often need **no restart at all**: `client.js` is served per request with no caching, so a hard refresh (Cmd/Ctrl+Shift+R) picks up plugin changes. The self-check commands above are platform-neutral.
-
-## Architecture notes
-
-- **Pure browser-side**: everything lives in `client.js` (a hand-written CJS bundle, no build step, served no-cache per request)
-- **Message format** (the literal protocol block sent to the model; follows the DSH `locale` preference — zh or en):
-
-  ```
-  zh: 我批注了以下 N 处内容…\n\n1. 原文\n   批注：…\n\n请用「Annotation 1：…」…\n\n提问：
-  en: I annotated the following N passage(s)…\n\n1. quote\n   Note: …\n\nPlease respond… "Annotation 1: …"…\n\nAsk:
-  ```
-
-  The zh delimiter is 「提问：」(ask:) rather than 「问题：」(question:) — the heading line "回答我的问题：" also contains the latter, and the bubble-hiding surgery would misfire on it; the en delimiter is `Ask:`. Hiding and reverse-parsing accept both languages plus the legacy 「问题：」 marker.
-- **Bubble hiding**: user bubbles are plain-text rendered (a single MessageText node, not markdown); a MutationObserver in the microtask phase (before paint) splits at the last `\n提问：`, cuts the annotation block, and attaches the chip; a 1 s polling fallback plus historical-message repair after refresh
-- **Reply chips**: after streaming settles (`data-streaming` removed), each `Annotation N:` is replaced with a hoverable chip; item data is stored on the most recent user message carrying the annotation tag (`tag.__annotationItems`) and rebuilt after refresh; **snapshot the text nodes collected by the TreeWalker before touching the DOM, then replace one by one** — replacing a child mid-walk invalidates the walker pointer and only the first node gets processed
-- **Locale-aware**: UI copy and the protocol block follow DSH's `locale` service (`zh`/`en`, live switch); historical bubbles stay parseable across languages; missing locale service falls back to zh
-- **IME-safe**: the Enter interception carries `isComposing` / keyCode 229 guards; never hard-edits the composer textarea's DOM; `setDraft` only assembles the annotation block at the last moment before submit and never clobbers the user's draft
-- **No reliance on send-completion event chains**: bubble decoration uses MutationObserver + polling (`watchInputDraft` can be ineffective before the session is loaded at init; it is only a staging entry)
-- **Focus-chat compatible**: works inside the focus conversation view of [dsh-focus-chat](https://github.com/dingyi222666/dsh-focus-chat) — assistant rows there are `[data-focus-flow]` containers with a `*_assistant` CSS-Modules class (plus `data-streaming` while running); selection, annotation, reply chips, and re-anchoring all work in the focus tab alongside the main chat view
-
-## Version history
-
-| Version | Highlights |
-|---|---|
-| v1.4.x | Locale-aware: zh/en UI copy and annotation protocol block, live switch via DSH `locale` service |
-| v1.3.x | Numbered reply correspondence: format-instruction injection + hoverable `Annotation N:` chips (TreeWalker snapshot fix) |
-| v1.2.x | Hidden annotation block in bubble: MutationObserver microtask zero-flicker + polling fallback + historical-message repair |
-| v1.x | Self-contained annotation flow (replaces the v0.9 chip design): capture-Enter assembles the block and sends it with the message |
-| v0.9.x | Early chip design (insertReference + slash codec), superseded by v1.x |
-
-## Friendly links
-
-- [Linux.do](https://linux.do)
-
-## License
-
-MIT
+MIT。上游版权归 omdsh-dev，fork 改动归 Ryuu-64。见 [`LICENSE`](./LICENSE) 与 [`NOTICE.md`](./NOTICE.md)。
