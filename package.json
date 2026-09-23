@@ -42,6 +42,7 @@
     "test": "node --test \"test/**/*.test.mjs\"",
     "check": "node --check lib/index.js && node --check client.js && npm test",
     "verify:deployment": "node scripts/verify-deployment.mjs",
+    "check:upstream": "node scripts/check-against-upstream.mjs",
     "install:local": "node scripts/install-local.mjs",
     "deploy:profile": "node scripts/deploy-profile.mjs",
     "file:issues": "node scripts/file-issues.mjs"

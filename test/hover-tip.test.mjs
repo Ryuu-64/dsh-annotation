@@ -79,8 +79,10 @@ function makeEnv(opts = {}) {
     console: { log() {}, warn() {} },
     setTimeout(fn, ms) { const id = ++seq; timers.set(id, { fn, at: now + ms }); return id },
     clearTimeout(id) { timers.delete(id) },
-    // 由用例控制的几何判定结果（真实实现见下面的 [B] 用例）
-    pointerWithinTip: () => opts.pointerInside === true,
+    // 默认用可控的指针判定；useRealPointer 时改用下面抽出并注入的真实实现
+    ...(opts.useRealPointer === true ? {} : { pointerWithinTip: () => opts.pointerInside === true }),
+    // 供 [B] 用真实 pointerWithinTip 时喂几何：面板矩形存沙箱变量，由桩节点读取
+    tipPanelRect: { left: 0, right: 0, top: 0, bottom: 0 },
   }
   vm.createContext(sandbox)
 
@@ -92,7 +94,13 @@ function makeEnv(opts = {}) {
     extractFunction('scheduleHide'),
     extractFunction('cancelHide'),
     extractFunction('ownedHide'),
+    'var TIP_GAP_TOLERANCE = 10',
+    'var livePointerX = null',
+    'var livePointerY = null',
+    extractFunction('onTipPointerMove'),
+    extractFunction('pointerWithinTip'),
     'globalThis.__env = { clearTip, presentTip, scheduleHide, cancelHide, ownedHide,'
+      + ' pointerWithinTip, onTipPointerMove,'
       + ' get tipOwner() { return tipOwner }, get hoverGrace() { return hoverGrace } }',
   ]
   vm.runInContext(parts.join('\n'), sandbox)
@@ -192,10 +200,23 @@ test('[C] 所有面板共用一个计时器句柄，不会各自堆积', () => {
 // ---------------------------------------------------------------- B
 
 test('[B] 指针仍在触发元素/面板/间隙容差内时不关闭（而非只赌 250ms）', () => {
-  const { env, tipLayer, tick } = makeEnv({ pointerInside: true })
-  const tag = makeStubNode()
+  // 用真实 pointerWithinTip：喂真实几何 + 真实指针坐标。
+  // （注意：vm.runInContext 会把真实的 pointerWithinTip 赋值到沙箱，覆盖注入桩）
+  const { env, tipLayer, tick } = makeEnv({ useRealPointer: true })
 
-  env.presentTip(tag, { nodeType: 1, id: 'tag-panel' })
+  const tag = {
+    left: 100, right: 200, top: 300, bottom: 318,
+    getBoundingClientRect() { return this },
+  }
+  const panel = {
+    nodeType: 1,
+    rect: { left: 100, right: 420, top: 324, bottom: 400 },   // 与触发元素相距 6px
+    getBoundingClientRect() { return this.rect },
+  }
+
+  env.presentTip(tag, panel)
+  // 指针停在 6px 间隙里（不在任何元素上），把 250ms 宽限走满
+  env.onTipPointerMove({ clientX: 150, clientY: 321 })
   env.scheduleHide(tag)
   tick(300)
 
@@ -287,4 +308,66 @@ test('模块标识与包名一致（否则 client-modules 拒绝注册）', () =
   assert.match(source, new RegExp(`id: '${pkg.name.replace(/[/@]/g, (c) => '\\' + c)}'`),
     'ModuleLoader id 必须等于 package.json 的 name')
   assert.match(source, new RegExp(`exports\\.name = '${pkg.name.replace(/[/@]/g, (c) => '\\' + c)}'`))
+})
+
+// ------------------------------------------------- 组合：真实事件时序
+
+test('组合：hover 标签 → 宿主高频 updateChip → 鼠标移向面板 → 共存的 A/B 面板', () => {
+  // 用真实的 pointerWithinTip（useRealPointer），几何与指针坐标都自己喂
+  const { env, tipLayer, tick, pendingTimers } = makeEnv({ useRealPointer: true })
+
+  const trigger = {
+    left: 100, right: 200, top: 300, bottom: 318,
+    getBoundingClientRect() { return this },
+  }
+  const chipLayer = makeStubNode()   // 输入框旁的胶囊（无待发送批注）
+
+  // 面板几何：与触发元素相距 6px（真实定位就是 r.bottom + 6）
+  const panelGeom = { nodeType: 1, rect: { left: 100, right: 420, top: 324, bottom: 400 },
+    getBoundingClientRect() { return this.rect } }
+  const panelGeom2 = { nodeType: 1, rect: { left: 100, right: 420, top: 500, bottom: 560 },
+    getBoundingClientRect() { return this.rect } }
+
+  // ① 指针在触发元素上 → hover 弹出标签面板
+  env.onTipPointerMove({ clientX: 150, clientY: 310 })
+  env.presentTip(trigger, panelGeom)
+  assert.equal(tipLayer.childNodes.length, 1, '① 面板应已显示')
+  assert.equal(env.tipOwner, trigger)
+
+  // ② 宿主 layout mutation（scroll / resize / MutationObserver）连打好几次
+  //    —— 这正是线上「刚 hover 就没」的现场
+  for (let i = 0; i < 5; i++) env.clearTip(chipLayer)
+  assert.equal(tipLayer.childNodes.length, 1, '② 宿主高频清理后，标签面板必须还在')
+
+  // ③ 鼠标离开触发元素、落进 6px 间隙 → 排一个 250ms 关闭
+  env.onTipPointerMove({ clientX: 150, clientY: 321 })
+  env.scheduleHide(trigger)
+  assert.equal(pendingTimers(), 1)
+
+  // ④ 停在间隙里把 250ms 走满 —— 上游在这里就没了
+  tick(300)
+  assert.equal(tipLayer.childNodes.length, 1, '④ 指针仍在间隙内，面板不该消失')
+
+  // ⑤ 指针进入面板本体，再走满一次宽限
+  env.onTipPointerMove({ clientX: 260, clientY: 360 })
+  env.scheduleHide(trigger)
+  tick(300)
+  assert.equal(tipLayer.childNodes.length, 1, '⑤ 指针在面板上，面板必须保持')
+
+  // ⑥ 快速从 A 触发元素滑到 B：B 显示后，A 遗留的宽限到点不得误杀 B
+  env.onTipPointerMove({ clientX: 500, clientY: 600 })
+  env.scheduleHide(trigger)                 // A 排下关闭
+  const otherChip = makeStubNode()
+  env.presentTip(otherChip, panelGeom2)     // B 立即显示
+  assert.equal(env.tipOwner, otherChip)
+  tick(300)                                  // A 的定时器到点
+  assert.equal(tipLayer.childNodes.length, 1, '⑥ B 的面板不该被 A 的定时器清掉')
+  assert.equal(env.tipOwner, otherChip, '⑥ 归属必须仍是 B')
+
+  // ⑦ 指针真正离开两者 → 面板最终仍会关闭（别修成永不关闭）
+  env.onTipPointerMove({ clientX: 900, clientY: 900 })
+  env.scheduleHide(otherChip)
+  tick(300)
+  assert.equal(tipLayer.childNodes.length, 0, '⑦ 指针远离后应正常关闭')
+  assert.equal(env.tipOwner, null)
 })
