@@ -3,6 +3,23 @@
 本文件上游部分（1.4.10 及以下）保留原样，便于与本 fork 对照。fork 改动从
 `1.4.10-ryuu.1` 起单独记录。
 
+## 已向上游提交的 PR
+
+本 fork 的四个修复里，`[A]` 的根因与上游 PR 重合，另外两条已单独以 PR 形式提给上游
+（正交、可各自独立合并）：
+
+| 上游 PR | 内容 | 对应本 fork 的 |
+| --- | --- | --- |
+| [#65](https://github.com/omdsh-dev/dsh-annotation/pull/65)（他人提交） | 归属模型 `tipOwner` / `clearTip` / `presentTip`；250ms 定时器跨面板误杀 | `[A]` `[C]` |
+| [#66](https://github.com/omdsh-dev/dsh-annotation/pull/66) | 跨间隙不再依赖固定 250ms 宽限，改为实时指针位置判定 | `[B]` |
+| [#67](https://github.com/omdsh-dev/dsh-annotation/pull/67) | 共享容器监听器不再随面板重建而无界累积 | `[D]` |
+
+`[A]`/`[C]` 与 #65 同思路，因此**没有**重复提 PR，改为在 #65 下留言附上本机的
+独立复现与验证结论（[评论](https://github.com/omdsh-dev/dsh-annotation/pull/65#issuecomment-5806647193)）。
+
+上游合并后，本 fork 的处理方式：`git fetch upstream && git merge upstream/main`
+再重跑 `npm run verify` 与 `npm run audit:drift`（漂移审计会指出哪些改动已被上游吸收）。
+
 ## [1.4.10-ryuu.1] - fork 首发
 
 基线：上游 `@changfenhuang/dsh-annotation@1.4.10`（MIT）。**只改浏览器端 `client.js`
