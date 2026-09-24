@@ -8,7 +8,7 @@
 //   3. 若已接入，直接跑一遍部署自检
 //
 // 实际接入用：node scripts/deploy-profile.mjs
-// 接入后自检：node scripts/verify-deployment.mjs
+// 接入后自检：npm test（test/deployment.test.mjs 会在本机 profile 上逐项断言）
 
 import { readFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
@@ -54,7 +54,7 @@ if (failed > 0) {
 console.log('[install-local] 仓库自检通过。接入 profile：')
 console.log('')
 console.log('    node scripts/deploy-profile.mjs            # 接进 desktop profile（幂等）')
-console.log('    node scripts/verify-deployment.mjs         # 核对接线')
+console.log('    npm test                                   # 核对接线（test/deployment.test.mjs 会逐项断言）')
 console.log('    node scripts/deploy-profile.mjs --remove   # 退回上游包')
 console.log('')
 console.log('[install-local] 也可以手工改 profile 的 package.json：')
@@ -64,13 +64,6 @@ console.log(`    "dsh": { "profile": { "bundles": [ ..., "${pkg.name}" ] } }`)
 console.log('')
 console.log('  然后在该 profile 目录跑 pnpm install。注意 bundles 里要移除上游包名')
 console.log('  @changfenhuang/dsh-annotation，避免同一个 UI 被装载两次。')
-
-if (existsSync(join(process.env.USERPROFILE ?? process.env.HOME ?? '', '.dsh', 'profiles', 'desktop', 'package.json'))) {
-  console.log('')
-  console.log('[install-local] 检测到 desktop profile，顺带跑一遍接线自检：')
-  try {
-    execFileSync(process.execPath, [join(repoRoot, 'scripts', 'verify-deployment.mjs')], { stdio: 'inherit' })
-  } catch {
-    console.log('[install-local] 接线尚未完成（见上方未通过项）。')
-  }
-}
+console.log('')
+console.log('[install-local] 接线核对交给测试：npm test 会跑 test/deployment.test.mjs；')
+console.log('  本机没有 desktop profile 时该文件会自动 skip，不会假装通过。')
