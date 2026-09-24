@@ -6,58 +6,59 @@
 
 <!-- README-I18N:END -->
 
-DSH Web 选中批注插件的 **fork**，修复了「鼠标悬停到批注上只显示一下，然后马上消失」。
+修复 DSH 批注插件「悬浮面板一闪就没」的问题。
 
-基线上游：[`@changfenhuang/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation) **1.4.10**（MIT）。
-本 fork 只改浏览器端 `client.js` 的**悬浮面板（hover tip）子系统**，其余行为与上游一致，
-以便上游修复后低成本对齐。
+选中助手回复里的文字 → 加批注 → 回车，模型会按编号逐条回应。把鼠标移到这些批注上
+本该显示内容——上游插件里这块面板**只闪一下就消失**。这个 fork 修的就是它。
 
-- 问题跟踪：https://github.com/Ryuu-64/dsh-annotation/issues
-- 上游仓库与本 fork 无关，**请勿向上游反馈本 fork 的改动**
-- 改动清单与上游关系：见 [`NOTICE.md`](./NOTICE.md) 与 [`CHANGELOG.md`](./CHANGELOG.md)
-- 上游原始文档：[`README.fork-upstream.md`](./README.fork-upstream.md) / [`README.fork-upstream.zh-CN.md`](./README.fork-upstream.zh-CN.md)
+- 基于上游 [`@changfenhuang/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation) **1.4.10**（MIT）
+- 问题反馈：https://github.com/Ryuu-64/dsh-annotation/issues
+- 与上游无关，**请勿向上游反馈本 fork 的改动**
 
-## 安装（本地 link，推荐）
+## 环境要求
 
-浏览器端是手写 CJS bundle，**零构建步骤**，所以改源码即时生效：
+- DSH Desktop，内核 **0.1.5-rc.2**（本 fork 的验证环境）
+
+## 安装
+
+执行下面两条命令，然后**重启 DSH Desktop**：
 
 ```powershell
 git clone https://github.com/Ryuu-64/dsh-annotation.git
-cd dsh-annotation
-node scripts/deploy-profile.mjs      # 接进 desktop profile（幂等）
-npm test                             # 核对接线（test/deployment.test.mjs）
+dsh plugin add .\dsh-annotation
 ```
 
-`deploy-profile` 做三件事：把 profile 依赖换成 `link:<本仓库>`、从
-`dsh.profile.bundles` 里用本 fork 的包名替换上游包名、跑 `pnpm install`。
-
-> ⚠ **改依赖 / bundles 名单必须完全重启 DSH Desktop** —— bundle 列表只在宿主启动时
-> 解析一次，只刷新页面不会让新插件上线。改 `client.js` 则只需刷新页面。
-
-退回到上游：`node scripts/deploy-profile.mjs --remove`
-
-## 验证
+**要让面板不再消失，必须顶掉上游插件**——如果还装着上游，先移除它：
 
 ```powershell
-npm install     # 只有 jsdom 一个 devDependency
-npm test        # 一条命令跑完全部用例（当前 44 个）
+dsh plugin remove @changfenhuang/dsh-annotation
 ```
 
-约定：**做事的在 `scripts/`，检查的在 `test/`**。`scripts/` 只放会改动系统的动作脚本
-（`deploy-profile` 改 profile、`install-local` 装依赖）；一切核对与审计都是 `test/` 下的
-测试，有断言、失败会红。其中：
+> **为什么要重启**：DSH 只在启动时读取插件列表，刷新页面不够。
 
-- 需要本机 DSH profile 的检查（接线是否正确）在本机没有该 profile 时**自动 skip**，不假装通过；
-- 需要上游基线代码的检查会自行从 npm 取（取不到则 skip），用来确认这些用例**确实针对缺陷**，
-  而不是自我安慰。
+## 确认是否生效
 
-## 已知风险
+把鼠标移到**已经发出去的消息**上的批注——面板应该停住不消失。悬停时滚一下滚轮试试：
+修复前只要一滚动，面板就没了。
 
-- **内核 0.1.6-alpha.2+ 会让「发送批注」整体静默失效**：内核移除了
-  `sessions.list.current`，本 fork（与上游 1.4.10 / 1.4.11-preview.1）有 7 处依赖它，
-  其中 `attachAndSend()` / `submitAttached()` 会**静默 return**。当前验证宿主为
-  0.1.5-rc.2，未受影响。详见 [#10](https://github.com/Ryuu-64/dsh-annotation/issues/10)。
-- 本 fork 未发布到 npm；请用 `link:` 或自建 tarball 安装。
+如果仍然消失，请[提个 issue](https://github.com/Ryuu-64/dsh-annotation/issues)，
+说明你的 DSH 版本和当时的操作。
+
+## 卸载
+
+```powershell
+dsh plugin remove @ryuu-64/dsh-annotation
+dsh plugin add @changfenhuang/dsh-annotation
+```
+
+## 升级 DSH 前请注意
+
+将来某个 DSH 内核版本（**0.1.6-alpha.2 或更新**）会移除本插件依赖的一个接口，届时
+批注会**不再随消息发送出去**——而且是**静默的，没有任何报错**。内容不会丢，但你会发现
+批注文字没跟着发出去。
+
+这一点**尚未修复**，记录在 [#10](https://github.com/Ryuu-64/dsh-annotation/issues/10)。
+除此之外升级 DSH 是安全的。
 
 ## 许可
 

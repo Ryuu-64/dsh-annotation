@@ -6,65 +6,63 @@
 
 <!-- README-I18N:END -->
 
-A **fork** of the DSH Web selection-annotation plugin, fixing "the annotation tooltip
-flashes once on hover and then disappears immediately".
+A fix for the DSH annotation plugin's disappearing tooltip.
 
-Based on upstream [`@changfenhuang/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation)
-**1.4.10** (MIT). This fork changes only the browser-side **hover-tip subsystem** of
-`client.js`; everything else behaves exactly like upstream, so aligning with upstream fixes
-later stays cheap.
+Select text in an assistant reply → annotate it → press Enter, and the model answers each
+annotation by number. Hovering those annotations is supposed to show their content — in the
+upstream plugin the panel **flashes once and vanishes**. This fork fixes that.
 
-- Issue tracker: https://github.com/Ryuu-64/dsh-annotation/issues
-- Not affiliated with upstream — **please do not report this fork's changes there**
-- What changed and how it relates to upstream: see [`NOTICE.md`](./NOTICE.md) and [`CHANGELOG.md`](./CHANGELOG.md)
-- Upstream original docs: [`README.fork-upstream.md`](./README.fork-upstream.md) / [`README.fork-upstream.zh-CN.md`](./README.fork-upstream.zh-CN.md)
+- Built on upstream [`@changfenhuang/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation) **1.4.10** (MIT)
+- Questions and bug reports: https://github.com/Ryuu-64/dsh-annotation/issues
+- Not affiliated with upstream — please don't report this fork's changes there
 
-## Install (local link, recommended)
+## Requirements
 
-The browser half is a hand-written CJS bundle with **no build step**, so source edits take
-effect immediately:
+- DSH Desktop with kernel **0.1.5-rc.2** (what this fork is verified against)
+
+## Install
+
+Run these two commands, then restart DSH Desktop:
 
 ```powershell
 git clone https://github.com/Ryuu-64/dsh-annotation.git
-cd dsh-annotation
-node scripts/deploy-profile.mjs      # wire into the desktop profile (idempotent)
-npm test                             # check the wiring (test/deployment.test.mjs)
+dsh plugin add .\dsh-annotation
 ```
 
-`deploy-profile` does three things: points the profile dependency at `link:<this repo>`,
-replaces the upstream package name with this fork's name in `dsh.profile.bundles`, and runs
-`pnpm install`.
-
-> ⚠ **Changing dependencies or the bundle list requires a full DSH Desktop restart** — the
-> bundle list is resolved once at host start-up, so refreshing the page will not bring the
-> new plugin online. Editing `client.js` only needs a page refresh.
-
-Roll back to upstream: `node scripts/deploy-profile.mjs --remove`
-
-## Verification
+Replacing the upstream plugin is what makes the panel stop disappearing — remove it first if
+it is still installed:
 
 ```powershell
-npm install     # jsdom is the only devDependency
-npm test        # one command runs every test (currently 44)
+dsh plugin remove @changfenhuang/dsh-annotation
 ```
 
-Convention: **actions live in `scripts/`, checks live in `test/`**. `scripts/` holds only
-scripts that change your system (`deploy-profile` edits the profile, `install-local` installs
-dependencies); every check and audit is a test under `test/`, with assertions that fail loudly.
+> **Why the restart:** DSH only reads its plugin list at start-up. Refreshing the page is not
+> enough.
 
-- Checks that need a local DSH profile (is the wiring correct?) are **skipped** when this
-  machine has no such profile — they never pretend to pass;
-- Checks that need the upstream baseline code fetch it from npm themselves (and skip if that
-  is unavailable); they exist to confirm these tests **actually target the defects** rather
-  than reassuring ourselves.
+## Check it worked
 
-## Known risks
+Hover an annotation on a message you have already sent — the panel should stay open. Scroll
+the wheel while hovering; before the fix, any scroll made it disappear.
 
-- **Kernel 0.1.6-alpha.2+ silently breaks "send annotation"**: the kernel removed
-  `sessions.list.current`, which this fork (and upstream 1.4.10 / 1.4.11-preview.1) reads in
-  7 places; `attachAndSend()` / `submitAttached()` then **return silently**. The verified host
-  today is 0.1.5-rc.2, so it is unaffected. See [#10](https://github.com/Ryuu-64/dsh-annotation/issues/10).
-- This fork is not published to npm; install it via `link:` or a self-built tarball.
+If it still disappears, please
+[open an issue](https://github.com/Ryuu-64/dsh-annotation/issues) with your DSH version and
+what you did.
+
+## Uninstall
+
+```powershell
+dsh plugin remove @ryuu-64/dsh-annotation
+dsh plugin add @changfenhuang/dsh-annotation
+```
+
+## Before you upgrade DSH
+
+A future DSH kernel (**0.1.6-alpha.2 or newer**) removes something this plugin needs, and
+annotations then stop being sent with your message — **silently, with no error**. Nothing is
+lost, but you will not see the annotation text arrive.
+
+This is not fixed yet; it is tracked in
+[#10](https://github.com/Ryuu-64/dsh-annotation/issues/10). Upgrading DSH is safe otherwise.
 
 ## License
 
