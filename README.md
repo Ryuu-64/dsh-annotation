@@ -28,7 +28,10 @@ DSH Web 选中批注插件的 **fork**，修复了「鼠标悬停到批注上只
 （该 PR 截至本 fork 建立时仍为 open / 未合并，且 `1.4.11-preview.1` 未包含）。
 
 各缺陷的完整分析（复现、根因带行号、修法、验证）见
-[issues/](./issues/) —— 它们已提交为本仓库的 #2 / #3 / #4 / #5。
+[issues/](./issues/) —— 它们已提交为本仓库的 #2 / #3 / #4 / #5，内核兼容风险见 #10。
+向上游提交的 PR 见 [#66](https://github.com/omdsh-dev/dsh-annotation/pull/66)（对应 `[B]`）与
+[#67](https://github.com/omdsh-dev/dsh-annotation/pull/67)（对应 `[D]`）；`[A]`/`[C]` 与上游
+[#65](https://github.com/omdsh-dev/dsh-annotation/pull/65) 同思路，故未重复提 PR。
 
 ## 安装（本地 link，推荐）
 
