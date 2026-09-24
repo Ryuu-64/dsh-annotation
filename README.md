@@ -11,28 +11,6 @@ DSH Web 选中批注插件的 **fork**，修复了「鼠标悬停到批注上只
 - 改动清单与上游关系：见 [`NOTICE.md`](./NOTICE.md) 与 [`CHANGELOG.md`](./CHANGELOG.md)
 - 上游原始文档：[`README.fork-upstream.md`](./README.fork-upstream.md) / [`README.fork-upstream.zh-CN.md`](./README.fork-upstream.zh-CN.md)
 
-## 修了什么
-
-三类悬浮面板（输入框旁胶囊 / 用户气泡上的「批注 ×N」标签 / 回复里的 `Annotation N` 芯片）
-共享同一个单例容器 `tipLayer`，而上游的清理逻辑没有「归属」概念，加上固定的 250ms
-宽限，导致面板刚显示就被抹掉。四个修复：
-
-| 标记 | 缺陷 | 修法 |
-| --- | --- | --- |
-| **A** | `updateChip()` 在「无待发送批注」时**无条件**清空共享容器；而它由 `scroll`(capture) / `resize` / body 级 `MutationObserver` 经 `onLayoutChange`(rAF) **高频**调用 | 引入归属模型 `tipOwner` / `clearTip(owner)` / `presentTip(owner, el)`，清空必须指名归属 |
-| **B** | 面板与触发元素间有 6px 间隙，跨间隙全靠固定 250ms 赌手速 | 宽限到点复查**实时**指针位置（`pointermove` 跟踪，而非 `mouseleave` 的过期坐标），指针仍在「触发元素 + 面板 + 容差」并集内就不关闭 |
-| **C** | 每个面板各持一个 `hide` 定时器却清同一个容器，A 的定时器会误杀 B 刚显示的面板 | 共用一个计时器句柄，关闭前校验「自己仍是当前归属」 |
-| **D** | 每次渲染气泡标签/回复芯片都往同一个 `tipLayer` 追加监听器，重渲染导致无界累积 | 共享容器只保留两处固定监听器，按 `tipOwner` 分派 |
-
-其中 **[A] 与上游 [PR #65](https://github.com/omdsh-dev/dsh-annotation/pull/65) 同思路**
-（该 PR 截至本 fork 建立时仍为 open / 未合并，且 `1.4.11-preview.1` 未包含）。
-
-各缺陷的完整分析（复现、根因带行号、修法、验证）见
-[issues/](./issues/) —— 它们已提交为本仓库的 #2 / #3 / #4 / #5，内核兼容风险见 #10。
-向上游提交的 PR 见 [#66](https://github.com/omdsh-dev/dsh-annotation/pull/66)（对应 `[B]`）与
-[#67](https://github.com/omdsh-dev/dsh-annotation/pull/67)（对应 `[D]`）；`[A]`/`[C]` 与上游
-[#65](https://github.com/omdsh-dev/dsh-annotation/pull/65) 同思路，故未重复提 PR。
-
 ## 安装（本地 link，推荐）
 
 浏览器端是手写 CJS bundle，**零构建步骤**，所以改源码即时生效：
@@ -56,28 +34,16 @@ npm test                             # 核对接线（test/deployment.test.mjs�
 
 ```powershell
 npm install     # 只有 jsdom 一个 devDependency
-npm test        # 一条命令跑完全部 44 个用例
+npm test        # 一条命令跑完全部用例（当前 44 个）
 ```
 
-`scripts/` 只放**执行动作**的脚本（`deploy-profile` 改 profile、`install-local` 装依赖）；
-一切「检查/核对/审计」都是 `test/` 下的测试，有断言、失败会红：
+约定：**做事的在 `scripts/`，检查的在 `test/`**。`scripts/` 只放会改动系统的动作脚本
+（`deploy-profile` 改 profile、`install-local` 装依赖）；一切核对与审计都是 `test/` 下的
+测试，有断言、失败会红。其中：
 
-| 测试文件 | 验什么 |
-| --- | --- |
-| `hover-tip.test.mjs` | 四个悬停修复的行为：把真实函数抽到 vm 沙箱按行为跑 |
-| `hover-tip.dom.test.mjs` | e2e：在 jsdom 里经 `ModuleLoader.load → factory → apply(ctx)` **装载真实 bundle**，用真实 DOM 事件与 `MutationObserver` 驱动；三类面板各一条 |
-| `session-id-fallback.test.mjs` | 当前会话 id 的三级降级与「不静默失败」 |
-| `regression-effectiveness.test.mjs` | 逐条断言**上游没有这些修复、本仓库有** —— 证明用例确实针对缺陷，而不是自我安慰 |
-| `drift-audit.test.mjs` | 与上游 1.4.10 的每一处差异是否都能归因到已知修复 |
-| `deployment.test.mjs` | profile 接线（依赖指向 / bundles / 软链 / 包名与 ModuleLoader id 一致）；本机没有该 profile 时自动 skip，不假装通过 |
-
-当前结果：
-
-```
-npm test → tests 44 | pass 44 | fail 0
-```
-
-上游 1.4.10 上，同一批悬停用例是**大面积失败**的（`regression-effectiveness` 会逐条断言这一点）。
+- 需要本机 DSH profile 的检查（接线是否正确）在本机没有该 profile 时**自动 skip**，不假装通过；
+- 需要上游基线代码的检查会自行从 npm 取（取不到则 skip），用来确认这些用例**确实针对缺陷**，
+  而不是自我安慰。
 
 ## 已知风险
 
