@@ -39,7 +39,7 @@
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib', { recursive: true, force: true })\" && tsc -p tsconfig.json",
-    "test": "node --test",
+    "test": "node --test test/*.test.mjs",
     "check": "node --check lib/index.js && node --check client.js && npm test"
   },
   "publishConfig": {
