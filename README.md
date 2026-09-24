@@ -41,7 +41,7 @@ DSH Web 选中批注插件的 **fork**，修复了「鼠标悬停到批注上只
 git clone https://github.com/Ryuu-64/dsh-annotation.git
 cd dsh-annotation
 node scripts/deploy-profile.mjs      # 接进 desktop profile（幂等）
-node scripts/verify-deployment.mjs   # 核对 13 项接线
+npm test                             # 核对接线（test/deployment.test.mjs）
 ```
 
 `deploy-profile` 做三件事：把 profile 依赖换成 `link:<本仓库>`、从
@@ -55,32 +55,29 @@ node scripts/verify-deployment.mjs   # 核对 13 项接线
 ## 验证
 
 ```powershell
-npm install          # 只有 jsdom 一个 devDependency
-npm run verify       # 语法 + 行为 + 反向验证 + 漂移审计 + 部署接线
+npm install     # 只有 jsdom 一个 devDependency
+npm test        # 一条命令跑完全部 44 个用例
 ```
 
-| 命令 | 作用 |
+`scripts/` 只放**执行动作**的脚本（`deploy-profile` 改 profile、`install-local` 装依赖）；
+一切「检查/核对/审计」都是 `test/` 下的测试，有断言、失败会红：
+
+| 测试文件 | 验什么 |
 | --- | --- |
-| `npm test` | 单测：把 `clearTip`/`scheduleHide`/`pointerWithinTip` 等真实函数抽到 Node vm 沙箱里按行为跑 |
-| `npm run test:dom` | e2e：在 jsdom 里经 `ModuleLoader.load → factory → apply(ctx)` **装载真实 bundle**，用真实 DOM 事件与 `MutationObserver` 驱动；三类面板各一条（气泡标签 / 回复芯片 / 输入框胶囊） |
-| `npm run check:upstream` | 把同一套用例指向上游 1.4.10 跑一遍，确认测试**确实能抓到**这个 bug（否则只是自我安慰） |
-| `npm run audit:drift` | 审计与上游 1.4.10 的每一处差异是否都能归因到预期修复 |
-| `npm run verify:deployment` | 核对 profile 接线：依赖指向、bundles 名单、软链、包名与 ModuleLoader id 一致等 |
+| `hover-tip.test.mjs` | 四个悬停修复的行为：把真实函数抽到 vm 沙箱按行为跑 |
+| `hover-tip.dom.test.mjs` | e2e：在 jsdom 里经 `ModuleLoader.load → factory → apply(ctx)` **装载真实 bundle**，用真实 DOM 事件与 `MutationObserver` 驱动；三类面板各一条 |
+| `session-id-fallback.test.mjs` | 当前会话 id 的三级降级与「不静默失败」 |
+| `regression-effectiveness.test.mjs` | 逐条断言**上游没有这些修复、本仓库有** —— 证明用例确实针对缺陷，而不是自我安慰 |
+| `drift-audit.test.mjs` | 与上游 1.4.10 的每一处差异是否都能归因到已知修复 |
+| `deployment.test.mjs` | profile 接线（依赖指向 / bundles / 软链 / 包名与 ModuleLoader id 一致）；本机没有该 profile 时自动 skip，不假装通过 |
 
 当前结果：
 
-| | 单测 | e2e | 合计 |
-| --- | --- | --- | --- |
-| **本 fork** | 15/15 | 5/5 | **20/20** |
-| **上游 1.4.10** | 1/15 | 0/5 | **1/20** |
-
-上游失败中最关键的一条正是本 fork 修的现象：
-
 ```
-✖ [e2e] 真实 hover：面板显示后，宿主 DOM 高频变化不会抹掉它
-  AssertionError: 宿主高频变化后面板必须还在
-  0 !== 1        ← 面板先显示出来（前一条断言通过），随后被宿主变化抹掉
+npm test → tests 44 | pass 44 | fail 0
 ```
+
+上游 1.4.10 上，同一批悬停用例是**大面积失败**的（`regression-effectiveness` 会逐条断言这一点）。
 
 ## 已知风险
 

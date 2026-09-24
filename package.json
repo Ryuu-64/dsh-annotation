@@ -42,13 +42,8 @@
     "build": "node -e \"require('node:fs').rmSync('lib', { recursive: true, force: true })\" && tsc -p tsconfig.json",
     "test": "node --test",
     "check": "node --check lib/index.js && node --check client.js && npm test",
-    "verify:deployment": "node scripts/verify-deployment.mjs",
-    "check:upstream": "node scripts/check-against-upstream.mjs",
-    "audit:drift": "node scripts/audit-drift.mjs",
-    "verify": "node scripts/verify.mjs",
     "install:local": "node scripts/install-local.mjs",
-    "deploy:profile": "node scripts/deploy-profile.mjs",
-    "verify:fixes": "node scripts/verify-fixes.mjs"
+    "deploy:profile": "node scripts/deploy-profile.mjs"
   },
   "publishConfig": {
     "access": "public",
