@@ -1,58 +1,72 @@
 # @ryuu-64/dsh-annotation
 
-DSH Web 选中批注插件的 **fork**，修复了「鼠标悬停到批注上只显示一下，然后马上消失」。
+<!-- README-I18N:START -->
 
-基线上游：[`@changfenhuang/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation) **1.4.10**（MIT）。
-本 fork 只改浏览器端 `client.js` 的**悬浮面板（hover tip）子系统**，其余行为与上游一致，
-以便上游修复后低成本对齐。
+**English** | [简体中文](./README.zh-CN.md)
 
-- 问题跟踪：https://github.com/Ryuu-64/dsh-annotation/issues
-- 上游仓库与本 fork 无关，**请勿向上游反馈本 fork 的改动**
-- 改动清单与上游关系：见 [`NOTICE.md`](./NOTICE.md) 与 [`CHANGELOG.md`](./CHANGELOG.md)
-- 上游原始文档：[`README.fork-upstream.md`](./README.fork-upstream.md) / [`README.fork-upstream.zh-CN.md`](./README.fork-upstream.zh-CN.md)
+<!-- README-I18N:END -->
 
-## 安装（本地 link，推荐）
+A **fork** of the DSH Web selection-annotation plugin, fixing "the annotation tooltip
+flashes once on hover and then disappears immediately".
 
-浏览器端是手写 CJS bundle，**零构建步骤**，所以改源码即时生效：
+Based on upstream [`@changfenhuang/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation)
+**1.4.10** (MIT). This fork changes only the browser-side **hover-tip subsystem** of
+`client.js`; everything else behaves exactly like upstream, so aligning with upstream fixes
+later stays cheap.
+
+- Issue tracker: https://github.com/Ryuu-64/dsh-annotation/issues
+- Not affiliated with upstream — **please do not report this fork's changes there**
+- What changed and how it relates to upstream: see [`NOTICE.md`](./NOTICE.md) and [`CHANGELOG.md`](./CHANGELOG.md)
+- Upstream original docs: [`README.fork-upstream.md`](./README.fork-upstream.md) / [`README.fork-upstream.zh-CN.md`](./README.fork-upstream.zh-CN.md)
+
+## Install (local link, recommended)
+
+The browser half is a hand-written CJS bundle with **no build step**, so source edits take
+effect immediately:
 
 ```powershell
 git clone https://github.com/Ryuu-64/dsh-annotation.git
 cd dsh-annotation
-node scripts/deploy-profile.mjs      # 接进 desktop profile（幂等）
-npm test                             # 核对接线（test/deployment.test.mjs）
+node scripts/deploy-profile.mjs      # wire into the desktop profile (idempotent)
+npm test                             # check the wiring (test/deployment.test.mjs)
 ```
 
-`deploy-profile` 做三件事：把 profile 依赖换成 `link:<本仓库>`、从
-`dsh.profile.bundles` 里用本 fork 的包名替换上游包名、跑 `pnpm install`。
+`deploy-profile` does three things: points the profile dependency at `link:<this repo>`,
+replaces the upstream package name with this fork's name in `dsh.profile.bundles`, and runs
+`pnpm install`.
 
-> ⚠ **改依赖 / bundles 名单必须完全重启 DSH Desktop** —— bundle 列表只在宿主启动时
-> 解析一次，只刷新页面不会让新插件上线。改 `client.js` 则只需刷新页面。
+> ⚠ **Changing dependencies or the bundle list requires a full DSH Desktop restart** — the
+> bundle list is resolved once at host start-up, so refreshing the page will not bring the
+> new plugin online. Editing `client.js` only needs a page refresh.
 
-退回到上游：`node scripts/deploy-profile.mjs --remove`
+Roll back to upstream: `node scripts/deploy-profile.mjs --remove`
 
-## 验证
+## Verification
 
 ```powershell
-npm install     # 只有 jsdom 一个 devDependency
-npm test        # 一条命令跑完全部用例（当前 44 个）
+npm install     # jsdom is the only devDependency
+npm test        # one command runs every test (currently 44)
 ```
 
-约定：**做事的在 `scripts/`，检查的在 `test/`**。`scripts/` 只放会改动系统的动作脚本
-（`deploy-profile` 改 profile、`install-local` 装依赖）；一切核对与审计都是 `test/` 下的
-测试，有断言、失败会红。其中：
+Convention: **actions live in `scripts/`, checks live in `test/`**. `scripts/` holds only
+scripts that change your system (`deploy-profile` edits the profile, `install-local` installs
+dependencies); every check and audit is a test under `test/`, with assertions that fail loudly.
 
-- 需要本机 DSH profile 的检查（接线是否正确）在本机没有该 profile 时**自动 skip**，不假装通过；
-- 需要上游基线代码的检查会自行从 npm 取（取不到则 skip），用来确认这些用例**确实针对缺陷**，
-  而不是自我安慰。
+- Checks that need a local DSH profile (is the wiring correct?) are **skipped** when this
+  machine has no such profile — they never pretend to pass;
+- Checks that need the upstream baseline code fetch it from npm themselves (and skip if that
+  is unavailable); they exist to confirm these tests **actually target the defects** rather
+  than reassuring ourselves.
 
-## 已知风险
+## Known risks
 
-- **内核 0.1.6-alpha.2+ 会让「发送批注」整体静默失效**：内核移除了
-  `sessions.list.current`，本 fork（与上游 1.4.10 / 1.4.11-preview.1）有 7 处依赖它，
-  其中 `attachAndSend()` / `submitAttached()` 会**静默 return**。当前验证宿主为
-  0.1.5-rc.2，未受影响。详见 [#10](https://github.com/Ryuu-64/dsh-annotation/issues/10)。
-- 本 fork 未发布到 npm；请用 `link:` 或自建 tarball 安装。
+- **Kernel 0.1.6-alpha.2+ silently breaks "send annotation"**: the kernel removed
+  `sessions.list.current`, which this fork (and upstream 1.4.10 / 1.4.11-preview.1) reads in
+  7 places; `attachAndSend()` / `submitAttached()` then **return silently**. The verified host
+  today is 0.1.5-rc.2, so it is unaffected. See [#10](https://github.com/Ryuu-64/dsh-annotation/issues/10).
+- This fork is not published to npm; install it via `link:` or a self-built tarball.
 
-## 许可
+## License
 
-MIT。上游版权归 omdsh-dev，fork 改动归 Ryuu-64。见 [`LICENSE`](./LICENSE) 与 [`NOTICE.md`](./NOTICE.md)。
+MIT. Upstream copyright belongs to omdsh-dev; fork changes belong to Ryuu-64.
+See [`LICENSE`](./LICENSE) and [`NOTICE.md`](./NOTICE.md).
