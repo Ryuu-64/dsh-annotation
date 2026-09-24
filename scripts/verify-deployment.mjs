@@ -120,7 +120,9 @@ else fail('共享容器只挂两处固定监听器', `实际 ${layerListeners} �
 console.log('')
 if (failed === 0) {
   console.log('[verify] 部署接线全部通过。')
-  console.log('[verify] 剩下只能人工确认：刷新页面后 hover 一条已有批注，面板应稳定不消失。')
+  console.log('[verify] 悬停面板行为已人工确认（2026-09-24，宿主 PID 45460 / 10:08:38 启动，')
+  console.log('[verify]   fork 的 client.js 于 10:08:41 被读取）：hover 不再闪退。')
+  console.log('[verify] 复现与回归留给自动化：npm run verify（fork 20/20，上游 1.4.10 为 1/20）。')
   console.log('[verify] ⚠ 接线自检通过 ≠ 宿主已加载本 fork。bundle 列表只在宿主启动时解析一次，')
   console.log('[verify]   改动依赖/bundles 名单后必须重启 DSH Desktop；只刷新页面不会让新插件上线。')
   console.log(`[verify] 页面控制台核对登记：window.__DSH_BOOT__.entries.find(({ id }) => id === '${FORK}')`)
