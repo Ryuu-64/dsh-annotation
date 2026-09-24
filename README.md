@@ -20,6 +20,14 @@ upstream plugin the panel **flashes once and vanishes**. This fork fixes that.
 
 - DSH Desktop with kernel **0.1.5-rc.2** (what this fork is verified against)
 
+## Annotate a file from the sidebar
+
+Select plain text, Markdown, or code in a workspace file preview, and the same annotate → save →
+Enter flow applies. The quote you send carries the file path, and the same passage quoted from
+two different files stays separate. Reopen the file after a reload and the markers come back.
+
+PDF files, images, and HTML inside iframes are not covered.
+
 ## Install
 
 Run these two commands, then restart DSH Desktop:

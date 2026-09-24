@@ -37,6 +37,7 @@ function harness(lang, draft, note = '解释一下') {
   }
   const api = Function('shell', 'document', 'NodeFilter', `
     ${protocol}
+    // quoteWithSource 是 var 函数表达式，不在下面按名字抽取的 function 声明里，单独注入。
     ${source.slice(source.indexOf('    function quoteWithSource('), source.indexOf('    function assistantRows('))}
     var ui = { quotes: [{ text: '原文包含提问：这个词', note: ${JSON.stringify(note)} }] }
     var annotationAttached = false
