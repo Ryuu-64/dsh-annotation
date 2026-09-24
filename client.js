@@ -884,7 +884,7 @@ window.__ModuleLoader__.load({
       }
 
       function writeCurrentPendingQuotes() {
-        writePendingQuotes(sessions.list.getSnapshot().current)
+        writePendingQuotes(currentSessionId())
       }
 
       var ignoreUntil = 0
@@ -1151,8 +1151,8 @@ window.__ModuleLoader__.load({
       document.addEventListener('keydown', onKeyDown, true)
 
       function submitAttached() {
-        var current = sessions.list.getSnapshot().current
-        if (current === undefined) return
+        var current = currentSessionId()
+        if (current === undefined) { announceSessionLost(); return }
         var scoped = sessions.scope(current)
         if (scoped === undefined) return
         try {
@@ -1523,8 +1523,8 @@ window.__ModuleLoader__.load({
       /** 提交前把批注块拼进 composer 草稿（随回车一起发送）。
        *  返回 true 表示批注块已在草稿中（本次刚拼入，或之前已拼入未发送）。 */
       function attachAndSend(e) {
-        var current = sessions.list.getSnapshot().current
-        if (current === undefined) return false
+        var current = currentSessionId()
+        if (current === undefined) { announceSessionLost(); return false }
         try {
           var scoped = sessions.scope(current)
           if (scoped === undefined) return false
@@ -1867,10 +1867,10 @@ window.__ModuleLoader__.load({
       function watchInputDraft() {
         if (inputWatchTimer !== null) { clearInterval(inputWatchTimer); inputWatchTimer = null }
         if (typeof inputUnsub === 'function') { inputUnsub(); inputUnsub = null }
-        var id = sessions.list.getSnapshot().current
+        var id = currentSessionId()
         if (id !== undefined && tryWatchInputDraft(id)) return
         inputWatchTimer = setInterval(function () {
-          var cur = sessions.list.getSnapshot().current
+          var cur = currentSessionId()
           if (cur !== undefined && tryWatchInputDraft(cur)) {
             clearInterval(inputWatchTimer)
             inputWatchTimer = null
@@ -2222,6 +2222,49 @@ window.__ModuleLoader__.load({
         if (decoTimer === null) decoTimer = setInterval(decorateAll, 1000)
       }
 
+      // ---------- 当前会话 id 的降级读取 ----------
+      // DSH 0.1.6-alpha.2+ 把 `sessions.list` 快照里的 `current` 字段移除了
+      // （上游报告见 omdsh-dev/dsh-annotation#64）。本插件原有 7 处直接读它，
+      // 拿不到时 attachAndSend() 会 **静默 return false** —— 消息照常发出，
+      // 批注内容凭空消失，且没有任何报错或提示。
+      //
+      // 这里按可靠性依次尝试三种来源，全部失败时返回 undefined；
+      // 调用方必须走 announceSessionLost() 明确提示，不得再静默跳过。
+      var SESSION_ID_STORAGE_KEY = 'dsh.sessions.current'
+      var sessionLostAnnounced = false
+
+      function currentSessionId() {
+        // ① 现行内核：list 快照自带 current
+        try {
+          var snap = sessions.list.getSnapshot()
+          if (snap !== null && snap !== undefined) {
+            if (typeof snap.current === 'string' && snap.current !== '') return snap.current
+            // ② 未来内核若把选中态换名放进快照，这里尽量兼容
+            if (typeof snap.currentId === 'string' && snap.currentId !== '') return snap.currentId
+          }
+        } catch (_) { /* 继续降级 */ }
+        // ③ 权宜：读内核自己的持久化键。键名或持久化方式一变即失效，
+        //    所以这只是兜底，不能替代内核侧提供公开读面。
+        try {
+          var raw = localStorage.getItem(SESSION_ID_STORAGE_KEY)
+          if (raw !== null && raw !== '') {
+            var parsed = JSON.parse(raw)
+            if (parsed !== null && typeof parsed === 'object'
+              && typeof parsed.sessionId === 'string' && parsed.sessionId !== '') return parsed.sessionId
+          }
+        } catch (_) { /* 继续降级 */ }
+        return undefined
+      }
+
+      /** 三种来源都拿不到会话 id 时明确告知用户：绝不静默失败。 */
+      function announceSessionLost() {
+        if (sessionLostAnnounced) return
+        sessionLostAnnounced = true
+        console.warn('[annotation] 无法识别当前会话：批注不会随消息发送。'
+          + '若是 DSH 升级后出现，请到 https://github.com/Ryuu-64/dsh-annotation/issues/10 反馈。')
+        try { showToast(t('toast.attachFail')) } catch (_) { /* toast 失败不再兜底 */ }
+      }
+
       // ---------- locale 服务（zh/en）订阅与实时回流 ----------
       // locale.subscribe() 触发时：重绘打开中的浮层、更新输入框旁计数与历史气泡标签。
       // 服务缺失（旧 host / 测试环境）时保持 zh，全部功能不变。
@@ -2254,10 +2297,10 @@ window.__ModuleLoader__.load({
       }
 
       // ---------- 待发送批注按会话恢复 ----------
-      var lastSessionId = sessions.list.getSnapshot().current
+      var lastSessionId = currentSessionId()
       ui.quotes = readPendingQuotes(lastSessionId)
       var unsub = sessions.list.subscribe(function () {
-        var cur = sessions.list.getSnapshot().current
+        var cur = currentSessionId()
         if (cur === lastSessionId) return
         writePendingQuotes(lastSessionId)
         lastSessionId = cur
