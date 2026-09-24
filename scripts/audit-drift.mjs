@@ -72,14 +72,18 @@ const ATTRIBUTABLE = new RegExp([
   'bubbleGrace', 'bubbleHide', 'bubbleKeep', 'grace', 'hide()', 'keep()', 'clearTimeout',
   // [D] 监听器不再挂到共享容器
   'tipLayer', 'addEventListener', 'removeEventListener',
+  // [E] 当前会话 id 降级读取 + 发送失败不再静默（issue #10）
+  'currentSessionId', 'SESSION_ID_STORAGE_KEY', 'sessionId', 'sessionLostAnnounced',
+  'announceSessionLost', 'localStorage', 'showToast', 'toast.attachFail',
   // 改名与归属声明
-  '@ryuu-64', 'changfenhuang', 'fork', '\\[A\\]', '\\[B\\]', '\\[C\\]', '\\[D\\]',
-  // 中文注释
+  '@ryuu-64', 'changfenhuang', 'fork', '\\[A\\]', '\\[B\\]', '\\[C\\]', '\\[D\\]', '\\[E\\]',
+  // 中文注释（覆盖各条修复里我写的注释用词）
   '悬停', '归属', '间隙', '指针', '监听器', '宽限', '宿主', '面板', '定时器', '渲染',
+  '会话', '来源', '告知', '静默', '无法识别', '绝不', '升级', '反馈', 'writePendingQuotes',
 ].join('|'))
 
 // 结构性行：花括号、循环体、注释续行等，本身不承载语义
-const STRUCTURAL = /^[{}()\[\];]*$|^\s*(var |if |for |return |function |}\s*$|\)|\}|\/\/)/
+const STRUCTURAL = /^[{}()\[\];]*$|^\s*(var |if |for |return |try |catch |function |}\s*$|\)|\}|\/\/)/
 
 function classify(list) {
   const unattributed = []

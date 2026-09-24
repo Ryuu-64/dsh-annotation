@@ -43,7 +43,10 @@ function runNode(label, args) {
 const results = []
 results.push(['语法 client.js', runNode('node --check client.js', ['--check', join(repoRoot, 'client.js')])])
 results.push(['语法 lib/index.js', runNode('node --check lib/index.js', ['--check', join(repoRoot, 'lib', 'index.js')])])
-results.push(['行为：单测 + e2e', runNode('node --test', ['--test', 'test/hover-tip.test.mjs', 'test/hover-tip.dom.test.mjs'])])
+// 交给 node --test 自动发现，不写死文件列表：手写列表在新增测试文件时会静默漏跑
+// （这个坑真踩过 —— test/session-id-fallback.test.mjs 加进来后，写死的两文件列表
+//  仍然只跑 20 个用例，而自动发现是 29 个）。
+results.push(['行为：node --test 自动发现全部测试', runNode('node --test', ['--test'])])
 results.push(['反向验证：同一套用例跑上游 1.4.10', runNode('check-against-upstream', ['scripts/check-against-upstream.mjs'])])
 results.push(['漂移审计：与上游 1.4.10 的差异是否全部可归因', runNode('audit-drift', ['scripts/audit-drift.mjs'])])
 results.push(['部署接线自检', runNode('verify-deployment', ['scripts/verify-deployment.mjs'])])
