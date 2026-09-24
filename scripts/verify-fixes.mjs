@@ -2,7 +2,7 @@
 // 一条命令验证本 fork 的四个悬浮面板修复都真实生效。
 //
 //   npm run verify          # 全量（语法 + 单测 + e2e + 反向验证 + 漂移审计 + 部署接线）
-//   node scripts/demo-fix.mjs   # 只想快速看结论时跑这个
+//   npm run verify:fixes    # 只想快速看结论时跑这个
 //
 // 它做两件事：
 //   1. 对本仓库的 client.js 跑行为测试（应当全绿）

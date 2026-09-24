@@ -40,9 +40,7 @@
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib', { recursive: true, force: true })\" && tsc -p tsconfig.json",
-    "test": "node --test test/hover-tip.test.mjs",
-    "test:dom": "node --test test/hover-tip.dom.test.mjs",
-    "test:all": "node --test test/hover-tip.test.mjs test/hover-tip.dom.test.mjs",
+    "test": "node --test",
     "check": "node --check lib/index.js && node --check client.js && npm test",
     "verify:deployment": "node scripts/verify-deployment.mjs",
     "check:upstream": "node scripts/check-against-upstream.mjs",
@@ -50,7 +48,7 @@
     "verify": "node scripts/verify.mjs",
     "install:local": "node scripts/install-local.mjs",
     "deploy:profile": "node scripts/deploy-profile.mjs",
-    "file:issues": "node scripts/file-issues.mjs"
+    "verify:fixes": "node scripts/verify-fixes.mjs"
   },
   "publishConfig": {
     "access": "public",
