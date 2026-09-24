@@ -42,9 +42,7 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib', { recursive: true, force: true })\" && tsc -p tsconfig.json",
     "test": "node --test",
-    "check": "node --check lib/index.js && node --check client.js && npm test",
-    "install:local": "node scripts/install-local.mjs",
-    "deploy:profile": "node scripts/deploy-profile.mjs"
+    "check": "node --check lib/index.js && node --check client.js && npm test"
   },
   "publishConfig": {
     "access": "public",
