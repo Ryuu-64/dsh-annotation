@@ -1,6 +1,6 @@
 {
   "name": "@ryuu-64/dsh-annotation",
-  "version": "1.4.10-ryuu.2",
+  "version": "1.5.0",
   "type": "module",
   "description": "DSH Web selection-annotation plugin (fork of @changfenhuang/dsh-annotation): select assistant text, annotate (optional), and press Enter to send the annotation block with your message — the model replies to each annotation by number, with hoverable chips in the reply.",
   "main": "lib/index.js",
@@ -22,7 +22,6 @@
     "README.md",
     "README.zh-CN.md",
     "LICENSE",
-    "CHANGELOG.md",
     "NOTICE.md"
   ],
   "author": "Ryuu-64",

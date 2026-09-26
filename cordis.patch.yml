@@ -7,7 +7,7 @@
 #
 # 也可用官方 CLI 从 tarball 安装：
 #
-#   dsh plugin --profile desktop add ryuu-64-dsh-annotation-1.4.10.tgz
+#   dsh plugin --profile desktop add ryuu-64-dsh-annotation-1.5.0.tgz
 #
 # Node half 是空实现，全部功能在 client.js（浏览器 bundle）。
 - insert:
