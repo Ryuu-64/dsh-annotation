@@ -196,13 +196,13 @@ for (const busyEnter of ['queue', 'steer'] as const) {
         await page.locator('[data-annotation-for-dsh]').waitFor({ state: 'attached', timeout: 30_000 })
         const clientUrl = await page.evaluate(() => {
           const boot = (globalThis as unknown as { __DSH_BOOT__?: { entries?: { id: string; url: string }[] } }).__DSH_BOOT__
-          return boot?.entries?.find(entry => entry.id === '@changfenhuang/dsh-annotation')?.url
+          return boot?.entries?.find(entry => entry.id === '@ryuu-64/dsh-annotation')?.url
         })
         expect(clientUrl).toBeDefined()
         const servedClient = await page.request.get(new URL(clientUrl!, scaffold.baseUrl).href)
         expect(servedClient.ok()).toBe(true)
         const selectedPath = join(pluginDir!, 'client.js')
-        const resolvedPath = scaffold.ctx.clientModules.clientPath('@changfenhuang/dsh-annotation')
+        const resolvedPath = scaffold.ctx.clientModules.clientPath('@ryuu-64/dsh-annotation')
         expect(resolvedPath).toBeDefined()
         expect(await realpath(resolvedPath!)).toBe(await realpath(selectedPath))
         const selectedSource = await readFile(selectedPath)

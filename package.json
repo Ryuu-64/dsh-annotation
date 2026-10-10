@@ -1,8 +1,8 @@
 {
-  "name": "@changfenhuang/dsh-annotation",
-  "version": "1.4.11",
+  "name": "@ryuu-64/dsh-annotation",
+  "version": "1.6.0",
   "type": "module",
-  "description": "DSH Web selection-annotation plugin: select assistant text, annotate (optional), and press Enter to send the annotation block with your message — the model replies to each annotation by number, with hoverable chips in the reply.",
+  "description": "Independently maintained DSH Web selection-annotation plugin, based on omdsh-dev/dsh-annotation.",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {
@@ -22,7 +22,11 @@
     "README.md",
     "README.zh-CN.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "NOTICE.md"
+  ],
+  "author": "Ryuu-64",
+  "contributors": [
+    "changfenhuang and omdsh-dev (upstream, MIT)"
   ],
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib', { recursive: true, force: true })\" && tsc -p tsconfig.json",
@@ -31,11 +35,16 @@
     "prepack": "npm run check"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/omdsh-dev/dsh-annotation.git"
+    "url": "git+https://github.com/Ryuu-64/dsh-annotation.git"
+  },
+  "homepage": "https://github.com/Ryuu-64/dsh-annotation#readme",
+  "bugs": {
+    "url": "https://github.com/Ryuu-64/dsh-annotation/issues"
   },
   "peerDependencies": {
     "cordis": "^4.0.0-rc.7 || ^4.0.1"
@@ -54,6 +63,11 @@
         "@deepseek-ai/dsh-client-locale"
       ],
       "platform": "web"
+    },
+    "compatibility": {
+      "dshReleases": {
+        "0.2.0-rc.2": "compatible"
+      }
     }
   },
   "license": "MIT",
