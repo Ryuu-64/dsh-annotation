@@ -73,7 +73,7 @@ try {
   assert.ok(marker.x > 450, '不会误标聊天中的同文')
   await page.locator('.dsh-ann-num').click()
   assert.equal(await page.locator('.dsh-ann-input').inputValue(), '解释这个文件')
-  await page.locator('.dsh-ann-card-head button').click()
+  await page.locator('.dsh-ann-card-head .dsh-ann-icon').click()
   await page.locator('[data-composer-input]').press('Enter')
   const draft = await page.evaluate(() => window.draft)
   assert.ok(draft.includes('[docs/a.md]') && draft.includes('[docs/b.md]'), '两份文件路径都随原文拼稿')

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { createServer } from 'node:net'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pluginClientUrl } from './plugin-client-url.mjs'
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DSH_ROOT = process.env.DSH_ROOT ?? resolve(process.env.HOME ?? '', '.dsh/source/current')
@@ -102,7 +103,7 @@ try {
     }
   })
   const clientUrl = state.clientUrl ?? '/plugins/@changfenhuang/dsh-annotation/client.js'
-  const response = await fetch(`http://127.0.0.1:${PORT}${clientUrl}`)
+  const response = await fetch(pluginClientUrl(readyUrl, clientUrl))
   if (!response.ok) fail(`Annotation bundle 返回 ${response.status}`)
   if (!state.mounted) fail('Annotation bundle 已加载，但页面没有挂载批注入口')
   if (pageErrors.length > 0) fail(`页面异常: ${pageErrors.slice(0, 3).join(' | ')}`)
@@ -159,13 +160,25 @@ try {
     const later = page.getByRole('button', { name: '稍后配置', exact: true })
     if (await later.isVisible()) await later.click()
     async function openFile() {
-      const expand = page.getByRole('button', { name: '打开右侧边栏', exact: true })
-      if (await expand.isVisible()) await expand.click()
-      if (!await page.locator('[data-sidebar-right-guide-entry="files"]').isVisible()) {
-        await page.getByRole('button', { name: '新标签页', exact: true }).click()
+      // Reload can leave the session list focused; the right sidebar belongs to the open session.
+      const session = page.getByText('文件批注验收', { exact: true }).first()
+      if (await session.isVisible()) await session.click()
+      const expand = page.locator('[data-sidebar-right-expand]')
+      const opened = page.locator('[data-sidebar-right-open]')
+      // The header control mounts after the session view. A collapsed panel stays
+      // in the DOM with visibility:hidden, so don't click that copy first.
+      await expand.or(opened).first().waitFor({ state: 'attached', timeout: 15000 })
+      if ((await opened.count()) === 0) {
+        if (await expand.isVisible()) await expand.click()
+        else await expand.first().evaluate(button => button.click())
       }
-      await page.getByText('工作区文件', { exact: true }).click()
-      await page.locator('[data-files-entry="file"][data-files-path$="/README.zh-CN.md"] button').click()
+      await opened.first().waitFor({ state: 'attached' })
+      const files = page.locator('[data-sidebar-right-guide-entry="files"]')
+      if (!(await files.isVisible())) {
+        await page.locator('[data-dockkit-add-tab]').first().click()
+      }
+      await files.click()
+      await page.locator('[data-files-entry="file"][data-files-path$="/README.zh-CN.md"] > button').click()
       await page.locator('[data-document-markdown] p').first().waitFor({ state: 'visible' })
     }
     await openFile()
@@ -188,7 +201,7 @@ try {
     await page.locator('.dsh-ann-num').waitFor({ state: 'visible' })
     await page.locator('.dsh-ann-num').click()
     if (await page.locator('.dsh-ann-input').inputValue() !== '请解释这个文件段落') fail('文件批注刷新恢复失败')
-    await page.locator('.dsh-ann-card-head button').click()
+    await page.locator('.dsh-ann-card-head > .dsh-ann-icon').click()
     if (pageErrors.length > 0) fail(`侧边栏异常: ${pageErrors.join(' | ')}`)
     console.log('PASS 真实侧边栏打开工作区文件、选区、来源路径、保存、刷新后重新打开定位、重新编辑')
   }

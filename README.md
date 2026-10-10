@@ -1,78 +1,50 @@
 # @ryuu-64/dsh-annotation
 
-<!-- README-I18N:START -->
-
 **English** | [简体中文](./README.zh-CN.md)
 
-<!-- README-I18N:END -->
+Select text in a DSH assistant reply or workspace file, add an optional note, and send the annotation with your next message. The assistant can answer each annotation by number, and the numbered reply chips reveal the quoted text on hover.
 
-A fix for the DSH annotation plugin's disappearing tooltip.
+This is an independently maintained distribution of [`omdsh-dev/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation). Version 1.6.0 uses upstream 1.4.11 as its source baseline and keeps the `@ryuu-64/dsh-annotation` package identity.
 
-Select text in an assistant reply → annotate it → press Enter, and the model answers each
-annotation by number. Hovering those annotations is supposed to show their content — in the
-upstream plugin the panel **flashes once and vanishes**. This fork fixes that.
+## What it supports
 
-- Built on upstream [`@changfenhuang/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation) **1.4.10** (MIT)
-- Questions and bug reports: https://github.com/Ryuu-64/dsh-annotation/issues
-- Not affiliated with upstream — please don't report this fork's changes there
-
-## Requirements
-
-- DSH Desktop with kernel **0.1.5-rc.2** (what this fork is verified against)
-
-## Annotate a file from the sidebar
-
-Select plain text, Markdown, or code in a workspace file preview, and the same annotate → save →
-Enter flow applies. The quote you send carries the file path, and the same passage quoted from
-two different files stays separate. Reopen the file after a reload and the markers come back.
+- Assistant-message annotations with optional notes
+- Numbered highlights and reply chips
+- Pending annotations that survive session switches and refreshes
+- Plain-text, Markdown, and code annotations in workspace file previews
+- Chinese, English, and Russian UI text
+- DSH releases through 0.2.0-rc.2, as verified by the upstream 1.4.11 release
 
 PDF files, images, and HTML inside iframes are not covered.
 
-## Install
+## Install in DSH Desktop
 
-Run these two commands, then restart DSH Desktop:
-
-```powershell
-git clone https://github.com/Ryuu-64/dsh-annotation.git
-dsh plugin add .\dsh-annotation
-```
-
-Replacing the upstream plugin is what makes the panel stop disappearing — remove it first if
-it is still installed:
+The upstream package and this package are alternatives. Remove the upstream package before installing this one:
 
 ```powershell
-dsh plugin remove @changfenhuang/dsh-annotation
+dsh plugin --profile desktop remove @changfenhuang/dsh-annotation
+dsh plugin --profile desktop add git+https://github.com/Ryuu-64/dsh-annotation.git
 ```
 
-> **Why the restart:** DSH only reads its plugin list at start-up. Refreshing the page is not
-> enough.
+Restart DSH Desktop after installation. Refreshing the page alone does not reload the Desktop plugin list.
 
-## Check it worked
+Do not enable both packages at the same time. They intentionally use the same DSH plugin id, `dsh-annotation`, because this package is a drop-in replacement rather than a second annotation system.
 
-Hover an annotation on a message you have already sent — the panel should stay open. Scroll
-the wheel while hovering; before the fix, any scroll made it disappear.
-
-If it still disappears, please
-[open an issue](https://github.com/Ryuu-64/dsh-annotation/issues) with your DSH version and
-what you did.
-
-## Uninstall
+## Check the installation
 
 ```powershell
-dsh plugin remove @ryuu-64/dsh-annotation
-dsh plugin add @changfenhuang/dsh-annotation
+dsh --profile desktop --dump-config | rg "id: dsh-annotation"
 ```
 
-## Before you upgrade DSH
+The command should show exactly one `dsh-annotation` entry. In DSH Desktop, select text in an assistant reply, save an annotation, send a message, and confirm that the numbered reply chip remains usable when hovered.
 
-A future DSH kernel (**0.1.6-alpha.2 or newer**) removes something this plugin needs, and
-annotations then stop being sent with your message — **silently, with no error**. Nothing is
-lost, but you will not see the annotation text arrive.
+## Feedback
 
-This is not fixed yet; it is tracked in
-[#10](https://github.com/Ryuu-64/dsh-annotation/issues/10). Upgrading DSH is safe otherwise.
+- Issues: <https://github.com/Ryuu-64/dsh-annotation/issues>
+- QQ group: `1129212995`
 
-## License
+Please report problems with this distribution here rather than in the upstream repository.
 
-MIT. Upstream copyright belongs to omdsh-dev; fork changes belong to Ryuu-64.
-See [`LICENSE`](./LICENSE) and [`NOTICE.md`](./NOTICE.md).
+## License and upstream credit
+
+MIT. Upstream copyright belongs to omdsh-dev. Fork-specific changes belong to Ryuu-64. See [`LICENSE`](./LICENSE) and [`NOTICE.md`](./NOTICE.md).

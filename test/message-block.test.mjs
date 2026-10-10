@@ -9,27 +9,29 @@ function fn(name) {
   assert.ok(match, name)
   return match[0]
 }
-function harness(lang, draft, sourcePath) {
+function harness(lang, draft, sourcePath, sessionsOverride, storageOverride) {
   const nodes = []
   const bubble = { querySelectorAll: () => [], get textContent() { return nodes.map(n => n.nodeValue).join('') } }
   const row = { querySelector: () => bubble }
   const shell = { state: { getSnapshot: () => ({ draft }) }, setDraft(value) { draft = value } }
   const document = { createTreeWalker: () => { let i = 0; return { nextNode: () => nodes[i++] ?? null } } }
-  const api = Function('shell', 'document', 'NodeFilter', 'sourcePath', `
+  const sessions = sessionsOverride ?? {
+    list: { getSnapshot: () => ({ current: 'session' }) },
+    scope: () => ({}),
+  }
+  const api = Function('shell', 'document', 'NodeFilter', 'sourcePath', 'sessions', 'localStorage', `
     ${protocol}
     ${source.slice(source.indexOf('    function quoteWithSource('), source.indexOf('    function assistantRows('))}
     var ui = { quotes: [{ text: '原文包含提问：这个词', note: '解释一下' }] }
     ui.quotes[0].sourcePath = sourcePath
     var annotationAttached = false
-    var sessions = { list: { getSnapshot: () => ({ current: 'session' }) }, scope: () => ({}) }
     var ctx = { conversation: { input: { for: () => shell } } }
+    var uiSessionService = null
     function showToast() {}
-    // 本 fork 的改动：attachAndSend 不再直接读 sessions 快照，改走 currentSessionId()。
-    // 上游这份 harness 早于该改动，故补一个桩，让插件拿到会话 id。
-    function currentSessionId() { return 'session' }
+    ${['uiSessionFace', 'currentSessionSource', 'readCurrentSessionId'].map(fn).join('\n')}
     ${['buildBlock', 'shouldAttachForEnter', 'isCommandDraft', 'attachAndSend', 'hideAnnotationBlock', 'parseItemsFromBubble'].map(fn).join('\n')}
     return { setLang, attachAndSend, hideAnnotationBlock, parseItemsFromBubble }
-  `)(shell, document, { SHOW_TEXT: 4 }, sourcePath)
+  `)(shell, document, { SHOW_TEXT: 4 }, sourcePath, sessions, storageOverride)
   api.setLang(lang)
   return { api, row, bubble, shell, render(value) {
     nodes.length = 0
@@ -38,19 +40,27 @@ function harness(lang, draft, sourcePath) {
   } }
 }
 
-for (const lang of ['zh', 'en']) {
+/** Языковая таблица: разделитель вопроса, инструкция с вопросом, заголовок блока. */
+const LANGS = {
+  zh: { marker: '提问：', withQuestion: /最后再回答我的问题/, head: '我批注了以下 1 处内容', other: 'en' },
+  en: { marker: 'Ask:', withQuestion: /then answer my question/, head: 'I annotated the following 1 passage', other: 'zh' },
+  ru: { marker: 'Вопрос:', withQuestion: /затем ответьте на мой вопрос/, head: 'Я аннотировал следующие', other: 'zh' },
+}
+
+for (const lang of Object.keys(LANGS)) {
+  const L = LANGS[lang]
   test(`${lang}: 空白草稿只发送批注，刷新后仍能解析和隐藏`, () => {
     for (const draft of ['', ' \n\t ']) {
       const h = harness(lang, draft)
       assert.equal(h.api.attachAndSend({}), true)
       const sent = h.shell.state.getSnapshot().draft
-      assert.doesNotMatch(sent, /(?:提问：|Ask:)\s*$/)
-      assert.doesNotMatch(sent, /最后再回答我的问题|then answer my question/)
+      assert.doesNotMatch(sent, /(?:提问：|Ask:|Вопрос:)\s*$/)
+      assert.doesNotMatch(sent, L.withQuestion)
       assert.match(sent, /Annotation/)
       assert.equal(h.api.attachAndSend({}), true)
       assert.equal(h.shell.state.getSnapshot().draft, sent, '重复发送前不重复拼稿')
       h.render(sent)
-      h.api.setLang(lang === 'zh' ? 'en' : 'zh')
+      h.api.setLang(L.other)
       assert.deepEqual(h.api.parseItemsFromBubble(h.row), [{ text: '原文包含提问：这个词', note: '解释一下' }])
       assert.equal(h.api.hideAnnotationBlock(h.row), true)
       assert.equal(h.bubble.textContent, '')
@@ -60,11 +70,11 @@ for (const lang of ['zh', 'en']) {
     const h = harness(lang, '我的问题\n第二行')
     h.api.attachAndSend({})
     const sent = h.shell.state.getSnapshot().draft
-    assert.ok(sent.endsWith((lang === 'zh' ? '提问：' : 'Ask:') + '\n我的问题\n第二行'))
+    assert.ok(sent.endsWith(L.marker + '\n我的问题\n第二行'))
     h.render(sent)
     assert.equal(h.api.hideAnnotationBlock(h.row), true)
     assert.equal(h.bubble.textContent, '我的问题\n第二行')
-    h.render(lang === 'zh' ? '我批注了以下 1 处内容' : 'I annotated the following 1 passage')
+    h.render(L.head)
     assert.equal(h.api.hideAnnotationBlock(h.row), false)
     assert.notEqual(h.bubble.textContent, '')
   })
@@ -79,5 +89,39 @@ for (const lang of ['zh', 'en']) {
     h.render(sent)
     assert.equal(h.api.parseItemsFromBubble(h.row)[0].text, '[文档/结果 #1.md]\n原文包含提问：这个词')
     assert.equal(h.api.hideAnnotationBlock(h.row), true)
+  })
+}
+
+// issue #64：DSH 0.1.6-alpha.2 移除了 sessions.list.current。已发布宿主上
+// `sessions.currentProvideInfo` 并不存在（上游契约已无此成员），真实可用路径是
+// ① localStorage['dsh.sessions.current'] ② 旧 list.current ③ list 行 retainedBy.mainView。
+const newKernelList = (rows, ids) => ({
+  list: { getSnapshot: () => ({ ids: ids ?? Object.keys(rows), byId: rows, phase: 'ready' }) },
+  scope: (id) => (Object.prototype.hasOwnProperty.call(rows, id) ? {} : undefined),
+})
+for (const lang of ['zh', 'en']) {
+  test(`${lang}: 新内核形状（list 无 current）+ 持久化选择态下批注仍随消息发送（issue #64）`, () => {
+    const kernel = newKernelList({ 'session-a': { retainedBy: {} } })
+    const storage = { getItem: (k) => (k === 'dsh.sessions.current' ? JSON.stringify({ sessionId: 'session-a' }) : null) }
+    const h = harness(lang, '我的问题', undefined, kernel, storage)
+    assert.equal(h.api.attachAndSend({}), true)
+    assert.match(h.shell.state.getSnapshot().draft, /Annotation/)
+  })
+
+  test(`${lang}: 无持久化键时退回 retainedBy.mainView 公开面`, () => {
+    const kernel = newKernelList({ 'session-b': { retainedBy: { mainView: 1 } } })
+    const h = harness(lang, '我的问题', undefined, kernel)
+    assert.equal(h.api.attachAndSend({}), true)
+    assert.match(h.shell.state.getSnapshot().draft, /Annotation/)
+  })
+
+  test(`${lang}: 旧内核形状（仅 list.current）下保持兼容`, () => {
+    const legacySessions = {
+      list: { getSnapshot: () => ({ current: 'session' }) },
+      scope: () => ({}),
+    }
+    const h = harness(lang, '', undefined, legacySessions)
+    assert.equal(h.api.attachAndSend({}), true)
+    assert.match(h.shell.state.getSnapshot().draft, /Annotation/)
   })
 }

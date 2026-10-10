@@ -1,11 +1,7 @@
 node_modules/
-*.tgz
-*.log
 .DS_Store
-.upstream-staging/
-.baseline/
-.audit/
-commit-msg.tmp.txt
-.commitmsg-*.txt
-.cmsg-*.txt
-.cmsg*.txt
+*.log
+scripts/
+test-data/
+.pnpm-store/
+.dsh-meow/

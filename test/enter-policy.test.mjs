@@ -36,11 +36,12 @@ test('attachAndSend 在 setDraft 之前拦截命令草稿', () => {
   assert.ok(guard < splice, 'command guard must run before setDraft splices the block')
 })
 
-test('新版可编辑输入区按 Enter 会进入批注拼稿（issue #41）', () => {
+test('Enter 拼稿同时覆盖新版输入区与旧版 textarea（issue #41 / #56）', () => {
   const fn = source.match(/function onKeyDown\(e\) \{[\s\S]*?\n      \}/)
   assert.ok(fn, 'client.js should define onKeyDown')
   assert.match(fn[0], /closest\('\[data-composer-input\]'\)/)
-  assert.doesNotMatch(fn[0], /HTMLTextAreaElement/)
+  assert.match(fn[0], /instanceof HTMLTextAreaElement/)
+  assert.match(fn[0], /closest\('\[data-composer-card\]'\)/)
 })
 
 test('保存批注后聚焦新版输入区，并把光标放在草稿末尾', () => {

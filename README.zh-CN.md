@@ -1,73 +1,50 @@
 # @ryuu-64/dsh-annotation
 
-<!-- README-I18N:START -->
-
 [English](./README.md) | **简体中文**
 
-<!-- README-I18N:END -->
+在 DSH 的助手回复或工作区文件里选中文字，添加可选批注，再随下一条消息一起发送。助手可以按编号逐条回应；把鼠标移到回复里的编号标签上，可以查看当时引用的原文。
 
-修复 DSH 批注插件「悬浮面板一闪就没」的问题。
+这是 [`omdsh-dev/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation) 的独立维护版本。1.6.0 以上游 1.4.11 为源码基线，并保留 `@ryuu-64/dsh-annotation` 包名。
 
-选中助手回复里的文字 → 加批注 → 回车，模型会按编号逐条回应。把鼠标移到这些批注上
-本该显示内容——上游插件里这块面板**只闪一下就消失**。这个 fork 修的就是它。
+## 支持的功能
 
-- 基于上游 [`@changfenhuang/dsh-annotation`](https://github.com/omdsh-dev/dsh-annotation) **1.4.10**（MIT）
-- 问题反馈：https://github.com/Ryuu-64/dsh-annotation/issues
-- 与上游无关，**请勿向上游反馈本 fork 的改动**
+- 给助手消息添加批注，批注说明可以留空
+- 编号高亮和回复标签
+- 未发送批注在切换会话或刷新后继续保留
+- 在工作区的纯文本、Markdown 和代码文件预览里批注
+- 中文、英文和俄语界面
+- 上游 1.4.11 已验收至 DSH 0.2.0-rc.2
 
-## 环境要求
+暂不支持 PDF、图片和 iframe 内的 HTML。
 
-- DSH Desktop，内核 **0.1.5-rc.2**（本 fork 的验证环境）
+## 安装到 DSH Desktop
 
-## 侧边栏文件批注
-
-在工作区文件预览里选中文本、Markdown 或代码正文，沿用同一套批注 → 保存 → 回车流程即可。
-发给模型的引用会带上文件路径；同一段文字出自不同文件时分别独立保存。刷新后重新打开该
-文件，标记会恢复。
-
-PDF、图片，以及 iframe 内的 HTML 暂不支持。
-
-## 安装
-
-执行下面两条命令，然后**重启 DSH Desktop**：
+上游包和本包是二选一的替代关系。安装本包前先移除上游包：
 
 ```powershell
-git clone https://github.com/Ryuu-64/dsh-annotation.git
-dsh plugin add .\dsh-annotation
+dsh plugin --profile desktop remove @changfenhuang/dsh-annotation
+dsh plugin --profile desktop add git+https://github.com/Ryuu-64/dsh-annotation.git
 ```
 
-**要让面板不再消失，必须顶掉上游插件**——如果还装着上游，先移除它：
+安装后重启 DSH Desktop。只刷新页面不会重新读取 Desktop 的插件列表。
+
+不要同时启用两个包。它们有意使用同一个 DSH 插件 ID `dsh-annotation`，因为本包是上游包的替代版本，不是第二套批注系统。
+
+## 确认是否安装成功
 
 ```powershell
-dsh plugin remove @changfenhuang/dsh-annotation
+dsh --profile desktop --dump-config | rg "id: dsh-annotation"
 ```
 
-> **为什么要重启**：DSH 只在启动时读取插件列表，刷新页面不够。
+命令应当只显示一个 `dsh-annotation`。进入 DSH Desktop 后，在助手回复里选中文字、保存批注并发送消息，再确认回复里的编号标签可以正常悬停查看。
 
-## 确认是否生效
+## 反馈
 
-把鼠标移到**已经发出去的消息**上的批注——面板应该停住不消失。悬停时滚一下滚轮试试：
-修复前只要一滚动，面板就没了。
+- 问题反馈：<https://github.com/Ryuu-64/dsh-annotation/issues>
+- QQ 群：`1129212995`
 
-如果仍然消失，请[提个 issue](https://github.com/Ryuu-64/dsh-annotation/issues)，
-说明你的 DSH 版本和当时的操作。
+这个版本的问题请反馈到本仓库，不要提交给上游仓库。
 
-## 卸载
+## 许可与上游署名
 
-```powershell
-dsh plugin remove @ryuu-64/dsh-annotation
-dsh plugin add @changfenhuang/dsh-annotation
-```
-
-## 升级 DSH 前请注意
-
-将来某个 DSH 内核版本（**0.1.6-alpha.2 或更新**）会移除本插件依赖的一个接口，届时
-批注会**不再随消息发送出去**——而且是**静默的，没有任何报错**。内容不会丢，但你会发现
-批注文字没跟着发出去。
-
-这一点**尚未修复**，记录在 [#10](https://github.com/Ryuu-64/dsh-annotation/issues/10)。
-除此之外升级 DSH 是安全的。
-
-## 许可
-
-MIT。上游版权归 omdsh-dev，fork 改动归 Ryuu-64。见 [`LICENSE`](./LICENSE) 与 [`NOTICE.md`](./NOTICE.md)。
+MIT。上游版权归 omdsh-dev，fork 的独立改动归 Ryuu-64。详见 [`LICENSE`](./LICENSE) 和 [`NOTICE.md`](./NOTICE.md)。
